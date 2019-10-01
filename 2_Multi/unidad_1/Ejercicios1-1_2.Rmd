@@ -1,0 +1,183 @@
+---
+title: "unidad_1_2"
+author: "Alejandro Keymer Gausset"
+date: "1 de octubre de 2019"
+output: html_document
+---
+
+# 2. Gráficos
+## 9. Con las variables CL y CW de la base de datos crabs del paquete MASS de R:
+a) Crear el diagrama de dispersión de las dos variables y sus histogramas marginales.
+b) Crear el diagrama de dispersión de las dos variables y sus diagramas de caja marginales.
+
+```{r}
+pacman::p_load(MASS, tidyverse, ggExtra)
+p <- ggplot(data = crabs, aes(CL, CW)) + geom_point()
+
+ggMarginal(p, type = "histogram")
+```
+
+```{r}
+ggMarginal(p, type = "box")
+```
+
+## 10. Con la base de datos crabs del paquete MASS de R, realizar los siguientes diagramas de caja múltiples:
+a) Para comparar las variables según especie.
+b) Para comparar las variables según sexo.
+c) Para comparar las variables según especie y sexo.
+
+```{r}
+# a) 
+crabs %>%
+    gather(key, value, -sex, -sp, -index) %>%
+    ggplot(aes(key, value, color = sp)) +
+    geom_boxplot() +
+    scale_color_viridis_d(begin = .2, end = .8)
+
+# b) 
+crabs %>%
+    gather(key, value, -sex, -sp, -index) %>%
+    ggplot(aes(key, value, color = sex)) +
+    geom_boxplot() +
+    scale_color_viridis_d(begin = .2, end = .8)
+
+# c) 
+crabs %>%
+    gather(key, value, -sex, -sp, -index) %>%
+    unite(det, sp, sex) %>%
+    ggplot(aes(key, value, color = det)) +
+    geom_boxplot() +
+    scale_color_viridis_d(end = .85)
+```
+
+
+
+
+## 11. Con la base de datos crabs del paquete MASS de R, realizar un matriz de diagramas de dispersión según especie y sexo con la instrucción pairs().
+a) Añadir los histogramas de cada variable a la diagonal.
+b) Añadir la recta de regresión a cada diagrama de dispersión.
+
+```{r}
+panel.hist <- function(x, ...)
+{
+    usr <- par("usr"); on.exit(par(usr))
+    par(usr = c(usr[1:2], 0, 1.5) )
+    h <- hist(x, plot = FALSE)
+    breaks <- h$breaks; nB <- length(breaks)
+    y <- h$counts; y <- y/max(y)
+    rect(breaks[-nB], 0, breaks[-1], y, col = "darkgreen", ...)
+}
+
+crabs %>%
+    filter(sex == 'M') %>%
+    select(4:8) %>%
+    pairs(., panel = panel.smooth, diag.panel = panel.hist)
+crabs %>%
+    filter(sex == 'F') %>%
+    select(4:8) %>%
+    pairs(., panel = panel.smooth, diag.panel = panel.hist)
+
+crabs %>%
+    filter(sp == 'B') %>%
+    select(4:8) %>%
+    pairs(., panel = panel.smooth, diag.panel = panel.hist)
+
+crabs %>%
+    filter(sp == 'O') %>%
+    select(4:8) %>%
+    pairs(., panel = panel.smooth, diag.panel = panel.hist)
+
+```
+
+
+## 12. Con la base de datos huswif del libro de Everitt(2005):
+a) Calcular algún gráfico de dispersión 3D con la función scatterplot3d() del paquete scatterplot3d.
+b) Realizar un gráfico de dispersión en dos dimensiones de las variables edad del marido y edad de la mujer. Añadir con la función symbols() la variable edad del marido en el primer matrimonio.
+
+```{r}
+source('https://www.york.ac.uk/depts/maths/data/everitt/chap1huswif.dat')
+pacman::p_load(scatterplot3d)
+
+# a)
+scatterplot3d(huswif$Hage, huswif$Hage, huswif$Hagefm)
+
+# b)
+huswif %>%
+    ggplot(aes(Hage, Wage)) + 
+    geom_point() +
+    geom_point(aes(x = Hagefm), shape = 3)
+
+```
+
+## 13. (*) Representar con caras de Chernoff las parejas de la base de datos huswif del libro de Everitt(2005).
+
+```{r}
+pacman::p_load(aplpack)
+aplpack::faces(huswif)
+```
+
+## 14. (*) Representar con un gráfico de estrellas los vectores de medias de todas las variables numéricas de la base de datos crabs del paquete MASS de R en los cuatro grupos, según especie y sexo.4
+
+```{r}
+crabs %>%
+    gather(key, value, -sex, -sp, -index) %>%
+    group_by(sp, key) %>%
+    summarise(mean = mean(value)) %>%
+    ggplot(aes(key, mean, color = sp, group = sp)) +
+    geom_line() +
+    coord_polar() +
+    scale_color_viridis_d(begin = .2, end = .8)
+
+crabs %>%
+    gather(key, value, -sex, -sp, -index) %>%
+    group_by(sex, key) %>%
+    summarise(mean = mean(value)) %>%
+    ggplot(aes(key, mean, color = sex, group = sex)) +
+    geom_line() +
+    coord_polar() +
+    scale_color_viridis_d(begin = .2, end = .8)
+    
+crabs %>%
+    gather(key, value, -sex, -sp, -index) %>%
+    group_by(sex, key) %>%
+    summarise(mean = mean(value)) %>%
+    spread(key, mean) %>%
+    select(-sex) 
+    
+stars(xx[], key.labels = c("1,1"), full = T, locations = c(0,0))
+
+
+xx
+```
+
+
+
+
+
+## 15. Señalar los datos atípicos en la base de datos crabs, únicamente para los datos de la especie Blue y sexo Macho:
+a) Según un criterio univariante como donde med(x) es la mediana de las observaciones y MAD(x) la mediana de las desviaciones en valor absoluto respecto a la mediana.
+b) Con otro criterio univariante como donde Q1,Q3 son los cuartiles y IQR el rango intercuartílico.
+c) Con un criterio multivariante sencillo como 
+1) Se busca el 50% de los datos con menor distancia de Mahalanobis al centro ¯x, media de todos los datos.
+2) Se calculan la media ¯xR y la matriz de covarianzas SR con ese conjunto reducido de datos.
+
+
+```{r}
+crabs %>%
+    filter(sp == "B", 
+           sex == "M") %>%
+    select(-sp, -sex, -index) %>%
+    gather(key, value) %>%
+    group_by(key) %>%
+    mutate(median = median(value),
+           mad = mad(value),
+           val_med = (abs(value-median))/mad)
+    mutate(criteria = abs(value - median(value))/mad(value) > 5) %>%
+    filter(criteria == T)
+
+star
+
+
+abs(xi - median(x))/mad(x) > 5
+```
+
