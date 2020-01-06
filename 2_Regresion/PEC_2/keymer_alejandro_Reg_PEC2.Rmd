@@ -1,0 +1,256 @@
+---
+title: "Regresión, modelos y métodos - PEC 2"
+author: "Alejandro Keymer"
+date: "1/6/2020"
+output: 
+  html_notebook: 
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(knitr, faraway, broom, leaps, corrplot, pls, tidyverse)
+```
+
+
+## Ejercicio 1 (25 pt.) Mecanismo neural de la nocicepción.
+El gusano *Caenorhabditis elegans* de la familia *Rhabditidae* mide aproximadamente 1 mm de longitud y vive enambientes templados. Es un importante modelo de estudioen biología, muy especialmente en genética del desarrollodes de los años 70, en parte debido a su pequeño número de neuronas y su genoma fácilmente manipulable. La nocicepción es la percepción neural de un estímulo real o potencialmente dañino. En *C. elegans* evoca un comportamiento de abstinencia autoconservante. Sin embargo, la estimulación repetida puede derivar en una respuesta de abstinencia o habituación reducida. Los investigadores compararon la respuesta de retirada a estímulos de luz perturbadores en *C. elegans* de tipo salvaje y una línea mutante de *C. elegans* que exhibe una respuesta más lenta de las neuronas sensoriales PVD. La falta de reacción indica habituación. Aquí están los porcentajes de animales probados que exhibieron una reacción de abstinencia a un estímulo nocivo que consiste en un número variable depulsos de luz consecutivos (IndMutant = 1 para la línea mutante y 0 para el tipo salvaje):
+
+### (a) 
+En una primera aproximación para comparar los porcentajes de reacción de los gusanos mutantes con los salvajes, nos planteamos hacer un test de comparación de dos muestras independientes y un gráfico adecuado, sin tener en cuenta los pulsos. Para ello debemos observar que la variable respuesta es un porcentaje y el test *t* de Student habitual no sirve. Entre las posibles soluciones tenemos las siguientes:
+  
+  1. Aplicar un test de Welch a los datos transformados con la función normalizante arcsin(√p).
+  2. Hacer un test no paramétrico como el de Mann-Whitney-Wilcoxon.
+  3. Aplicar un test de permutaciones para comparar las dos muestras.
+  4. Realizar una regresión logística binomial.
+  5. Calcular una regresión beta que es especialmente apropiada para proporciones.
+   
+Las dos últimas propuestas son las más acertadas, ya que las otras contemplan comparar medias o medianas de porcentajes. En todo caso, realizar tres de las cinco soluciones con una de ellas entre las dos últimas y comentar su resultado.
+   
+```{r}
+df <- 
+    read_csv2("C_elegans.csv") %>%
+    mutate(p_reac = Perc_Reacting/100,
+           IndMutant = factor(IndMutant))
+
+# boxplot de los datos
+ggplot(df, aes(x = IndMutant, y = p_reac)) +
+    geom_boxplot()
+```
+
+regresión logista binomial
+```{r}
+mod <- 
+    glm(IndMutant ~ p_reac, df, family = binomial(link = "logit"))
+tidy(mod)
+```
+
+
+Test de permutaciones
+
+```{r}
+mod <- coin::independence_test(p_reac ~ IndMutant, df)
+```
+
+---
+
+ (b) Dibujar el gráfico de dispersión del porcentaje de reacción en función del número de pulsos de luz con dos rectas que representen las dos sub poblaciones por separado, sin modelo común. Describir la forma de la relación. ¿Qué sugiere sobre el patrón de respuestas de abstinencia en las dos sub-poblaciones de *C. elegans* para un número creciente de pulsos de luz? ¿Cómo encaja su respuestaen el contexto de habituación? Explique por qué estos resultados sugieren una participación de las neuronas sensoriales de PVD en la nocicepción y la habituación. Nota: En este apartado consideramos la variable respuesta el porcentaje de reacción sin ninguna transformación.
+ 
+```{r}
+ggplot(df, aes(Perc_Reacting, Pulses, color = IndMutant)) + 
+    geom_point() +
+    geom_smooth(method = "lm")
+```
+
+ 
+ 
+---
+
+
+ (c) Proponer un modelo lineal que permita estudiar la asociación de la variable respuesta porcentajede reacción (sin ninguna transformación) con la variable Pulses y el factor IndMutant. 
+ 
+ ¿Cual es la ecuación del modelo final propuesto? 
+ 
+ ¿Es un modelo significativo? 
+ 
+ ¿Qué tanto por ciento de la variabilidad del porcentaje de reacción queda explicado por el modelo?
+ 
+ ¿Todos los coeficientes de las variables explicativas del modelo son significativos? 
+ 
+ Dibujar el gráfico de dispersión del apartado anterior pero con las rectas resultantes del modelo. Nota: En este apartado no haremos ninguna transformación de la variable respuesta, ni utilizaremos ningún modelo generalizado, ya que confiamos en la validez del modelo balanceado.
+```{r}
+mod <- lm(Perc_Reacting ~ Pulses * IndMutant, df)
+summary(mod)
+
+
+ggplot(df, aes(Perc_Reacting, Pulses, color = IndMutant)) + 
+    geom_point() +
+    geom_abline(intercept = coef(mod)[1], slope = coef(mod)[2])
+
+
+coef(mod)
+```
+
+ 
+---
+
+ 
+ (d) Ahora contestaremos las preguntas y dibujaremos el gráfico del apartado anterior si realizamos la transformación normalizante arcsin(√p) sobre la variable respuesta. Hallar el intervalo de confianza al 95 % para la media del porcentaje de mutantes que reaccionan a 10 pulsos de luz en condiciones experimentales parecidas. Nota: Habrá que deshacer la transformación para dibujar “las rectas”. 
+```{r}
+
+```
+
+ 
+# Ejercicio 2 (50 pt.)
+En este ejercicio se estudian diferentes formasde examinar un modelo de regresión múltiple. Los datos de Umetrics (1995) provienen del campo del descubrimiento de fármacos. Se desarrollan nuevos medicamentos a partir de productos químicos que son biológicamente activos. Probar la actividad biológica de un compuesto es un procedimiento costoso, por lo que es útil poder predecir la actividad biológica apartir de mediciones químicas más baratas. De hecho, la química computacional hace posible calcular ciertas mediciones químicas sin siquiera hacer elcompuesto. Estas medidas incluyen el tamaño, la lipofilia y la polaridad en varios lugares de la molécula. Los datos se hallan en el archivo `penta.dat`. Mejor si eliminamos las observaciones con algún valor perdido. Queremos estudiar la relación entre estas mediciones y la actividad del compuesto, representada por el logaritmo de la actividad relativa de bradiquinina `log.RAI`. Debemos tener en cuenta que estos datos contienen muchos predictores en relación con el número de observaciones. Será útil hallar algunos factores predictivos subyacentes que expliquen la mayor parte de la variación en la respuesta. Por lo general, el modelo se ajusta a parte de los datos (el conjunto de “entrenamiento” o “trabajo”) y la calidad del ajustese juzga por lo bien que predice la otra parte de los datos (el conjunto de “prueba” o “predicción”). Para este ejercicio tomaremos los siguientes conjuntos:
+```{r}
+# cargamos los datos
+penta <- 
+    read.table("penta.dat", header = T, na.strings = ".") %>%
+    na.omit()
+
+# funcion para caluclo de RMSE
+rmse <- function(x,y) sqrt(mean((x-y)^2))
+```
+
+
+```{r}
+set.seed(321)
+idx <- sample(1:30, size = 20, replace = F)
+ptrain <- penta[idx,]
+ptest <- penta[-idx,]
+```
+
+Para evaluar el ajuste utilizaremos la raíz cuadrada de la media de los errores al cuadrado (RMSE). Nota: Los mismos datos se hallan en el *data.frame* `Penta` del paquete `mvdalab` de **R**.
+
+ (a) Comprobar con los factores de inflación de la varianza que el modelo lineal completo y con todos los datos padece un problema grave de multicolinealidad. Esto justifica que debamos reducir el número de variables predictoras o utilizar algún método alternativo.
+ 
+```{r}
+mod <- lm(log.RAI ~ ., ptrain[-1])
+summary(mod)
+```
+ 
+ 
+ 
+```{r}
+X <- model.matrix(mod)[,-1]
+
+# hacemos un plot de correlacion
+corrplot::corrplot(cor(X), method = "color", order = 'AOE')
+
+# Chequeamos las vifs
+vifs_x <- vif(X)
+kable(rbind(vifs_x, SE = sqrt(vifs_x)), digits = 2)
+```
+ 
+
+---
+
+ 
+ (b) Estudiar el modelo reducido que proporciona el método `stepwise`. Se trata de comparar los RMSE del modelo reducido y del modelo completo para el grupo de entrenamiento y para el grupo de prueba. También de ver si el modelo reducido salva el problemad e multicolinealidad.
+```{r}
+mod_step <- step(lm(log.RAI ~ ., ptrain[-1]), trace = 0)
+
+anova(mod, mod_step)
+
+ypred <- predict(mod, newdata = ptest)
+
+rmse(ypred, ptest$log.RAI)
+
+
+ypred_step <- predict(mod_step, newdata = ptest)
+
+rmse(ypred_step, ptest$log.RAI)
+
+
+# Chequeamos las vifs
+X <- model.matrix(mod_step)[,-1]
+vifs_x <- vif(X)
+kable(rbind(vifs_x, SE = sqrt(vifs_x)), digits = 2)
+```
+ 
+
+---
+
+
+ (c) Hallar el mejor modelo por el criterio del AIC y por el R2 ajustado. ¿Coinciden? ¿Es el mismo modelo que selecciona el stepwise?
+ 
+```{r}
+rs <- 
+    regsubsets(log.RAI ~ ., ptrain[-1], nvmax = 10) %>%
+    summary()
+
+n <- dim(ptrain)[1]
+p <- length(rs$rss)
+
+
+rs_crit <- 
+    rs$which %>%
+    as_tibble() %>%
+    rowid_to_column() %>%
+    mutate(
+        rowid = factor(rowid),
+        rss = rs$rss,
+        r2_adj = rs$adjr2,
+        aic = n * log(rss/n) + (2:(p+1)) * 2)
+    
+# Creamos el plot de AIC y R2    
+rs_crit %>%
+    select(rowid, r2_adj, aic) %>%
+    gather(key, value, -rowid) %>%
+    ggplot(aes(rowid, value, color = key, group = key)) +
+    geom_point() +
+    geom_line() +
+    geom_vline(xintercept = 8) +
+    facet_wrap(~key, scales = "free") +
+    labs(title = "Valores de AIC y R2 segun el número de predictores empleado",
+         x = "Número de predictores", y = "valor")
+```
+
+
+```{r}
+# modelo elegido
+vars_aic <- rs$obj$xnames[rs$which[8,]]
+vars_step <- colnames(model.matrix(mod_step))
+
+
+kable(rbind(vars_aic, vars_step))
+
+```
+
+En este caso los criterios de AIC y de R2 ajustado, coinciden en que el mejor modelo es el que utiliza 8 parámetros (+ el intercepto). El modelo elegido por le criterio AIC / R2, resulta igual al modelo elegido mediante el procedimiento *stepwise*
+ 
+---
+
+ 
+ (d) Estudiar una regresión por componentes principales con estos datos. ¿Qué tal funciona con 8 componentes para el grupo de entrenamiento? ¿Cual es el número de componentes que se recomienda si hacemos una validación cruzada? Con ese número mínimo de componentes, ¿cual es el RMSE para el conjunto de prueba? 
+```{r}
+pca_1 <- 
+    ptrain %>%
+    select(S1:P5) %>%
+    FactoMineR::PCA(graph = F)
+
+kable(t(pca_1$eig)[,1:8], digits = 2)
+
+mod_pca <- pcr(log.RAI ~ ., data = ptrain[-1], validation = "CV", ncomp = 10)
+
+plot(RMSEP(mod_pca))
+
+
+
+ypred <- predict(mod_pca, ptest, ncomp=8)
+
+rmse(ypred, ptest$log.RAI)
+```
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  (e) Estudiar una regresión PLS. ¿Cuantas componentes selecciona la validación cruzada?¿Cual es la variabilidad de las variables predictoras explicada por 3 componentes?Con el paqueteplsdepotse pueden estudiar las correlaciones entre las variables y las compo-nentes y realizar el gráfico llamadocírculo de correlaciones. ¿Cual es la variable predictora mejorcorrelacionada con la primera componente?Nota: Recordemos que ya hemos fijado la semilla aleatoria al principio:set.seed(321).(f) Estudiar también el método de Ridge Regression con la funciónlm.ridge(). Además de los valoresRMSE para el grupo de entrenamiento y de prueba, debemos acompañar el análisis con un gráficode los coeficientes.Para hallar el lambda óptimo podemos empezar por un límite superior bajo y aumentar sucesiva-mente ese límite hasta que el valor óptimo no sea el límite superior.Aunque siempre es mejor estandarizar los datos, en este ejercicio no lo haremos para no compli-car más los cálculos del RMSE del conjunto de prueba. Internamente, lo hace la propia funciónlm.ridge()1.Nota1: Si el resultado del ajuste de las predicciones a los datos es decepcionante podríamos optarpor utilizar la funcióncv.glmnet(...,alpha=0)del paqueteglmnet. Esta función no necesita que1Se puede comprobar si ejecutamos la instrucciónMASS::lm.ridge(sin paréntesis) en la consola deR.Página 4 de 6
+le indiquemos una secuencia de valores de lambda, aunque sí requiere que le pasemos los datos comoobjetomatrix. Además podemos utilizar la validaciónleave one outsimplemente haciendo que elnúmero de carpetas (folds) sea exactamente el número de observaciones.Nota2: Aunque no hace falta, si se utilizan las funcinescv.glmnet()yglmnet()para el cálculodel modelo Ridge Regression, se puede comprobar que los resultados difieren notablemente de losque tenemos con la funciónlm.ridge(). Una sencilla explicación se puede leer enhttps://stats.stackexchange.com/questions/74206/ridge-regression-results-different-in-using-lm-ridge-and-glmnet(g) Finalmente estudiaremos el método LASSO con la funciónlars()del paquete del mismo nombre.Nota: Tal vez el resultado es demasiado restrictivo y hay que aumentar el número de variablesseleccionadas, lo que equivale a aumentar ligeramente el valor de lambda.Ejercicio 3 (25 pt.)Es posible utilizar la regresión logística para estudiar la discriminación entre dos grupos dado un conjuntode variables explicativas. Para más detalles podéis consultar el apartado 8.10 del libro de Manly[1].(a) Realizar un análisis discriminante con ayuda de la regresión logística con los datos de los 49 gorrioneshembra después de una tormenta.Reproducir con todo detalle la tabla 8.6 de la página 153 del libro de Manly.(b) Contrastar con un testχ2la significación de la regresión y explicar su resultado.(c) Realizar un gráfico como el de la figura 8.2 de la página 156 del libro de Manly pero con los datosde este ejercicio y valorar el resultado.(d) Calcular un intervalo de confianza para el parámetro de la variablex4=length humerusy para suodds ratio.(e) Calcular la tabla de confusión de la clasificación obtenida con la regresión logística.Página 5 de 6
+Referencias[1] Bryan F.J. Manly and Jorge A. Navarro Alberto (2017),Multivariate Statistical Methods: A Primer,Fourth Edition. Chapman and Hall/CRC. Springer-Verlag.[2] SAS/STAT(R) 9.22 User’s Guide, “The PLS Procedure”.[3]https://v8doc.sas.com/sashtml/stat/chap51/sect19.htm[4] Umetrics, Inc. (1995), Multivariate Analysis (3-day course), Winchester, MA.Página 6 de 6
+
+
