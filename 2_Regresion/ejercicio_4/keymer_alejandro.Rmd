@@ -1,0 +1,942 @@
+---
+title: "Diagnosis"
+author: "Alejandro Keymer"
+date: "11/11/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(pander, faraway, GGally, latex2exp, corrplot, tidyverse, broom)
+panderOptions('table.split.table', 120)
+```
+
+# Ejercicios del libro de Faraway
+
+## 1. (Ejercicio 1 cap. 6 pág. 97)
+Using the `sat` dataset, fit a model with the total SAT score as the response and `expend`, `salary`, `ratio` and `takers` as predictors. Perform regression diagnostics on this model to answer the following questions. Display any plots that are relevant. Do not provide any plots about which you have nothing to say. Suggest possible improvements or corrections to the model where appropriate.
+
+```{r}
+n <- dim(sat)[1]
+p <- dim(sat)[2]
+model <- 
+    lm(total ~ expend + salary + ratio + takers, data = sat)
+
+sat %>%
+    select(total, expend, salary, ratio, takers) %>%
+    ggpairs(progress = F)
+```
+
+Lo primero que hago es crear una matriz de dispersión para tener una idea de como se distribuyen las variables y la relación 2x2 que tienen entre si. Utilizo la librería `GGally` que tiene la función `ggpairs`.
+
+----
+
+
+ (a) Check the constant variance assumption for the errors.
+
+```{r, fig.cap="Gráficos Diagnósticos"}
+par(mfrow = c(2,2))
+plot(model)
+```
+
+Para evaluar la homocedasticidad del error utilizo los gráficos de:
+
+ + residuales v/s valor ajustado 
+ + residuales estandarisados v/s valor ajustado.
+ 
+ En este caso se observa cierta irregularidad en el gráfico $\hat{y} \times \hat{\epsilon}$ que podría traducir no-linearidad, aunque dentro de todo no se observa un patrón definido, ni tan anormal que haga pensar que el erro no sigue una homocedasticidad.
+ 
+---
+ 
+ (b) Check the normality assumption.
+ 
+```{r}
+shapiro.test(resid(model)) %>%
+  pander()
+```
+
+Para evaluar la normalidad del error, utilizo el gráfico de *Q-Q* de los residuales. En este caso el modelo se acerca bastante a la linea recta, con algunos valores *raros* que se alejan, que corresponden a los con valores mas altos de residuales, y que habría que examinar mejor.
+
+Por otra parte podemos utilizar el test de Shapiro-Wilk cuya H0 es que el error no difiere de la distribución normal. En este caso no hay evidencia para rechazar la H0
+
+---
+ 
+ (c) Check for large leverage points.
+```{r}
+halfnorm(hatvalues(model), labs = rownames(sat))
+augment(model) %>%
+    filter(.hat > 2*(p/n)) %>%
+  pander()
+```
+
+Para evaluar los valores extremos en el modelo, utilizamos dos gráficos. 
+
+ + La gráfica de los valores ajustados versus los residuales estandarizados ($\hat{y} \times \sqrt{|{\hat{\epsilon}}|}$)
+ + Una gráfica de *media normal (halfnormal)* versus los residuales estandarizados. De esta manera se pueden identificar los valores mas extremos en $X$. 
+
+En este caso podemos ver que los valores para `California` y `Utah` cumplen con las características para valores extremos. 
+
+---
+
+ (d) Check for outliers.
+```{r}
+(outliers <- 
+    augment(model) %>%
+    mutate(.t.resid = rstudent(model)) %>%
+    arrange(-abs(.t.resid)) %>%
+    head(5)) %>%
+    pander()
+
+
+abs(outliers$.t.resid) > abs(qt(.05/(n * 2), n - p))
+```
+
+Para valorar posibles *outliers* podemos utilizar la estrategia planteada en el libro de Faraway, y calcular los residuales *studentizados*. En este sentido los residuales cuyo valor superen un limite determinado por la corrección de Bonferroni, se podrían considerar posibles *outliers*.
+
+En este caso el valor que mas puede ser un outlier es `West Virginia`, aunque el valor de `.t.resid` de `west virgina` no es mayor al valor limite de p corregido. 
+ 
+ 
+```{r}
+model_1 <- 
+    sat %>%
+    rownames_to_column() %>%
+    filter(rowname != "West Virginia") %>%
+    lm(total ~ expend + salary + ratio + takers, data = .)
+
+pander(model)
+pander(model_1)
+```
+
+Como `West Virgina` es un valor extremo (esta lejos de la linea del 0 en el plot de $\hat{y} \times \sqrt{|{\hat{\epsilon}}|}$)
+
+---
+ 
+ (e) Check for influential points.
+ 
+```{r}
+plot(model, 4)
+halfnorm(cooks.distance(model), labs = rownames(sat))
+
+model_2 <- 
+    sat %>%
+    rownames_to_column() %>%
+    filter(rowname != "Utah") %>%
+    lm(total ~ expend + salary + ratio + takers, data = .)
+
+
+pander(model)
+pander(model_1)
+pander(model_2)
+```
+
+Para evaluar los puntos mas influyentes podemos utilizar la *distancia de Cook* que refleja los cambios en el modelo al no incluir una observación determinada. En este caso destacan `Utah` y `West Virginia` como observaciones influyentes. Además podemos volver a mirar el gráfico de *Residuales v/s leverage*, que también refleja puntos con un grado alto de *palanca* y un residual alto.
+
+```{r fig.height=7, fig.width=7}
+influence(model)$coefficients %>%
+    as_tibble(rownames = "id") %>%
+    gather(key, value, -id) %>%
+    ggplot(aes(fct_rev(id), value, group = key)) +
+    geom_line(alpha = .75)+
+    coord_flip() +
+    geom_hline(yintercept = 0, linetype = 3, color = "darkred") +
+    facet_grid(~ key, scales = "free") +
+    scale_colour_viridis_d(end=.85) 
+```
+
+La función `influence` permite obtener los coeficientes al restar una observación $x_i$ ("leave one out"). De esta manera puedo construir un gráfico que revela los cambios en los diferentes coeficientes para cada una de las observaciones. En este gráfico se ve claramente como `Utah` genera los mayores cambios en todos los coeficientes. 
+
+
+
+```{r}
+plot(model, 5)
+```
+
+
+```{r}
+pander(sat[44,])
+```
+
+El modelo multivariable es explicativo, con un valor de R^2 relativamente alto. En el modelo el gasto por estudiante `expend` y el sueldo `salary` se relacionan de manera positiva con el resultado del test `total`. La `ratio` de profesores y el porcentaje de estudiantes que hacen el examen de manera negativa. 
+
+`Utah` es un caso *raro* en la medida que tiene un score muy alta en relación a un gasto `expend` y un sueldo `salary`  inferior al promedio por una parte, y una `ratio`. El porcentaje de alumnos elegibles `takers` llama la atención, ya que parece extremadamente bajo en relación a los otros parámetros. 
+
+
+ 
+ (f) Check the structure of the relationship between the predictors and the response.
+
+En primer lugar me remito al gráfico de dispersión de (a), que permite reflejar la distribución y la relacion 1 a 1 de las variables. 
+ 
+ 
+```{r}
+# added variable 
+car::avPlots(model)
+```
+
+Para evaluar la estructura del modelo son de utilidad los gráficos de regresión parcial. La regresión parcial permite *aislar* la influencia de una variable independiente con la variable dependiente, restando la influencia de las otras variables independientes. Además permiten valorar la presencia de *outliers* y puntos influyentes. 
+
+En este caso podemos ver la clara relación inversa de la variable `takers` con el `total` y la relación mas débil de las otras variables. POdemos observar ademas el caso *raro* de `Utah`
+
+```{r}
+par(mfrow = c(2,2))
+termplot(model, partial.resid = T)
+```
+
+Los gráficos de residuales parciales, permiten conocer la respuesta aislando el *efecto* del resto de variables independientes. También permiten poder observar la presencia de diferencias estructurales, de no -linearidad
+
+
+## 2. (Ejercicio 2 cap. 6 pág. 97)
+Using the `teengamb` dataset, fit a model with `gamble` as the response and the other variables as predictors. Answer the questions posed in the previous question.
+
+```{r}
+n <- dim(teengamb)[1]
+p <- dim(teengamb)[2]
+
+teengamb_cl <- 
+    teengamb %>%
+    rownames_to_column(".rownames") %>%
+    mutate(.rownames = factor(.rownames), 
+           sex = factor(sex, levels = c (0,1), labels = c('male', 'female')))
+
+model <- 
+    lm(gamble ~ sex + status + income + verbal, data = teengamb_cl)
+
+teengamb_cl %>%
+    select(gamble, sex, status, income, verbal) %>%
+    ggpairs(progress = F, aes(color = sex), lower = list(combo = wrap("facethist", bins = 10)))
+
+```
+
+En este caso gráfico con utilizando `sex` como un factor.
+
+----
+
+
+ (a) Check the constant variance assumption for the errors.
+
+```{r, fig.cap="Gráficos Diagnósticos"}
+par(mfrow = c(2,2))
+plot(model)
+```
+
+En este caso el gráfico podría definir cierta heterocedasticidad en la medida que a mayor valor de $\hat{y}$ parece haber mayor dispersión del error.
+
+```{r}
+var.test(resid(model)[teengamb_cl$sex == "female"], resid(model)[teengamb_cl$sex == "male"]) %>%
+  pander()
+```
+
+En este caso al menos en cuanto a las poblaciones según sexo, hay una diferencia significativa en las varianzas
+
+---
+ 
+ (b) Check the normality assumption.
+ 
+```{r}
+shapiro.test(resid(model)) %>%
+  pander()
+```
+
+En este caso podemos observar que el gráfico *Q-Q* difiere de la normalidad con un patrón de *cola larga*. Por otra parte la preba de Shapiro Wilk refleja que se rechaza la H0 de normalidad de la distribución del error. 
+
+---
+ 
+ (c) Check for large leverage points.
+```{r}
+halfnorm(hatvalues(model), labs = teengamb_cl$.rownames)
+augment(model) %>% 
+    mutate(.rownames = teengamb_cl$.rownames) %>%
+    filter(.hat > 2*(p/n)) %>%
+  pander()
+```
+
+En este caso podemos ver que los valores para 42 y 35 cumplen con las características para valores extremos. Habría que revisar también los 31 y 33. 
+
+---
+
+ (d) Check for outliers.
+```{r}
+augment(model) %>%
+    mutate(.t.resid = rstudent(model)) %>%
+    filter(abs(.t.resid) > abs(qt(.05/(n * 2), n - p))) %>%
+    pander()
+
+```
+
+En este caso el valor 24 parece ser un *outlier*
+ 
+ 
+```{r}
+model_1 <- 
+    teengamb_cl %>%
+    filter(.rownames != "24") %>%
+    lm(gamble ~ sex + status + income + verbal, data = .) %>%
+    pander()
+
+pander(model)
+pander(model_1)
+```
+
+La exclusión de la observación 24 genera varios cambios en todos los coeficientes del modelo. Ademas de ser un candidato a *outlier* es un valor muy influyente
+
+---
+ 
+ (e) Check for influential points.
+ 
+```{r}
+plot(model, 4)
+halfnorm(cooks.distance(model), labs = teengamb_cl$.rownames)
+```
+
+El gráfico de distancias de Cook confirma que el valor 24 se aleja mucho del comportamiento de las otras variables, que es un valor influyente y probablemente un outlier. 
+
+```{r fig.height=7, fig.width=7}
+influence(model)$coefficients %>%
+    as_tibble(rownames = "id") %>%
+    mutate(id = factor(id, levels = c(1:n))) %>%
+    gather(key, value, -id) %>%
+    ggplot(aes(fct_rev(id), value, group = key)) +
+    geom_line(alpha = .75)+
+    coord_flip() +
+    geom_hline(yintercept = 0, linetype = 3, color = "darkred") +
+    facet_grid(~ key, scales = "free")
+
+```
+
+
+
+```{r}
+plot(model, 5)
+```
+
+
+```{r}
+pander(model)
+teengamb_cl[24,] %>% pander()
+```
+
+
+
+ 
+ (f) Check the structure of the relationship between the predictors and the response.
+
+En primer lugar me remito al gráfico de dispersión de (a), que permite reflejar la distribución y la relación 1 a 1 de las variables. 
+ 
+ 
+```{r}
+car::avPlots(model)
+```
+
+En este caso el modelo refleja la relación directa del sexo masculino y del `income` con `gamble`, y la relación inversa suave con el score `verbal`. Es posible apreciar claramente que la observación 24 es un caso *raro* que se sale de las líneas de predicción para todos los coeficientes. 
+
+
+```{r}
+par(mfrow = c(2,2))
+termplot(model, partial.resid = T)
+```
+
+En este caso los parciales de residuales reflejan lo que se ve en el primer gráfico de dispersión y es que hay variables que no tiene una distribución normal, como `income` y , que podrían hacer pensar en hacer que transformaciones de las variables mejorarían la estructura del modelo
+
+
+## 3. (Ejercicio 3 cap. 6 pág. 97)
+For the `prostate` data, fit a model with lpsa as the response and the other variables as predictors. Answer the questions posed in the first question.
+
+```{r message=FALSE, warning=FALSE}
+n <- dim(prostate)[1]
+p <- dim(prostate)[2]
+
+prostate_cl <- 
+    prostate %>%
+    mutate(svi = as.logical(svi))
+
+model <- 
+    lm(lpsa ~ lcavol + lweight + age + lbph + svi + lcp + gleason + pgg45, data = prostate_cl)
+
+ggpairs(prostate_cl, progress = F, lower = list(continuous = wrap("points", alpha = 0.5, size = .4)))
+```
+
+Lo primero que hago es crear una matriz de dispersión para tener una idea de como se distribuyen las variables y la relación 2x2 que tienen entre si. Utilizo la librería `GGally` que tiene la función `ggpairs`.
+
+----
+
+
+ (a) Check the constant variance assumption for the errors.
+
+```{r, fig.cap="Gráficos Diagnósticos"}
+par(mfrow = c(2,2))
+plot(model)
+```
+
+Para evaluar la homocedasticidad del error utilizo los gráficos de:
+
+ + residuales v/s valor ajustado 
+ + residuales estandarizados v/s valor ajustado.
+ 
+En este caso no se observa un patrón definido por lo que se asume homocedasticidad.
+ 
+---
+ 
+ (b) Check the normality assumption.
+ 
+```{r}
+shapiro.test(resid(model)) %>% pander()
+```
+
+La gráfica *Q-Q* parece bastante pareja y aproximada a la linea. El test de Shapiro Wilk confirma la normalidad del error
+
+---
+ 
+ (c) Check for large leverage points.
+```{r}
+halfnorm(hatvalues(model), labs = rownames(prostate))
+augment(model) %>%
+    mutate(.rownames = rownames(prostate)) %>%
+    filter(.hat > 2*(p/n)) %>%
+    pander()
+```
+
+Para evaluar los valores extremos en el modelo, utilzamos dos gráficos. 
+
+ + La gráfica de los valores ajustados versus los residuales estandarizados ($\hat{y} \times \sqrt{|{\hat{\epsilon}}|}$)
+ + Una gráfica de *media normal (halfnormal)* versus los residuales estandarizados. De esta manera se pueden identificar los valores mas extremos en $X$. 
+
+En este caso podemos ver que los valores para el caso 32, 37 y el 41 cumplen con las características para valores extremos. 
+
+---
+
+ (d) Check for outliers.
+```{r}
+augment(model) %>%
+    mutate(.t.resid = rstudent(model)) %>%
+    filter(abs(.t.resid) > abs(qt(.05/(n * 2), n - p))) %>%
+    pander()
+```
+
+Para valorar posibles *outliers* podemos utilizar la estrategia planteada en el libro de Faraway, y calcular los residuales *studentizados*. En este sentido los residuales cuyo valor superen un limite determinado por la corrección de Bonferroni, se podrían considerar posibles *outliers*.
+
+En este caso no hay valores que cumplan con lo propuesto
+ 
+---
+ 
+ (e) Check for influential points.
+ 
+```{r}
+plot(model, 4)
+halfnorm(cooks.distance(model), labs = rownames(prostate))
+
+model_1 <- 
+    prostate_cl %>%
+    rownames_to_column() %>%
+    filter(rowname != "32") %>%
+    lm(formula = lpsa ~ lcavol + lweight + age + lbph + svi + lcp + 
+    gleason + pgg45, data = .)
+
+model_2 <- 
+    prostate_cl %>%
+    rownames_to_column() %>%
+    filter(rowname != "47") %>%
+    lm(formula = lpsa ~ lcavol + lweight + age + lbph + svi + lcp + 
+    gleason + pgg45, data = .)
+    
+
+
+pander(model)
+pander(model_1)
+pander(model_2)
+
+```
+
+Los casos mas influyentes son el `32` y el `47`. Si sacamos del modelo la observación 32, el coeficiente de `lweight` cambia en $.15$. Al quitar la observación `47`, el modelo se preserva mejor. 
+
+
+
+```{r fig.height=9, fig.width=7}
+influence(model)$coefficients %>%
+    as_tibble(rownames = "id") %>%
+    mutate(id = factor(id, levels = c(1:n))) %>%
+    gather(key, value, -id) %>%
+    ggplot(aes(fct_rev(id), value, group = key)) +
+    geom_line(alpha = .75)+
+    coord_flip() +
+    geom_hline(yintercept = 0, linetype = 3, color = "darkred") +
+    facet_grid(~ key, scales = "free")
+```
+
+En este gráfico se ve  como `32` genera un cambio importante en `lweight`. Llama la atención ademas la observación `69` que genera cambios en varios coeficientes y que tiene una distancia de cook importante.
+
+
+
+```{r}
+plot(model, 5)
+```
+
+
+```{r}
+prostate_cl[c(69,32, 47),] %>% pander()
+```
+
+Los casos `69`, `32` y `47` son casos influyente. El caso `32` ademas tiene mucha *palanca*. Pero no tengo mucha evidencia como para decir que son outliers.
+
+---
+
+ 
+ (f) Check the structure of the relationship between the predictors and the response.
+
+
+```{r}
+car::avPlots(model)
+```
+
+La regresión parcial confirma que `32` y mas aún el`69` son casos *raros* que se comportan de manera diferente a la mayoría en cuanto a las lineas de regresión parcial. 
+
+
+```{r}
+par(mfrow = c(2,2))
+termplot(model, partial.resid = T)
+```
+ 
+ Aquí destaca el caso `32` con un `lweight` muy alejado del resto, y la estrucutra de `lbph`  (y en menor grado, de `lcp`, `pgg45` y `gleason`) que no es para nada homogenea, lo que ya se veía en el grafico de dispersion. 
+
+
+## 4. (Ejercicio 4 cap. 6 pág. 97)
+For the  `swiss` data, fit a model with `Fertility` as the response and the other variables as predictors. Answer the questions posed in the first question.
+
+
+```{r}
+n <- dim(swiss)[1]
+p <- dim(swiss)[2]
+
+model <- 
+    lm(Fertility ~ Agriculture + Examination + Education + Catholic + Infant.Mortality, data = swiss)
+
+
+swiss %>%
+    ggpairs(progress = F, lower = list(continuous = wrap("points", alpha = 0.75, size = .8)))
+```
+
+Lo primero que hago es crear una matriz de dispersión para tener una idea de como se distribuyen las variables y la relación 2x2 que tienen entre si. Utilizo la librería `GGally` que tiene la función `ggpairs`.
+
+----
+
+
+ (a) Check the constant variance assumption for the errors.
+
+```{r, fig.cap="Gráficos Diagnósticos"}
+par(mfrow = c(2,2))
+plot(model)
+```
+
+No se observa un patrón definido, por lo que se acepta una homocedasticidad del error.
+ 
+---
+ 
+ (b) Check the normality assumption.
+ 
+```{r}
+shapiro.test(resid(model)) %>% pander()
+```
+
+El gráfico *Q-Q se adapta bien a la linea. La prueba no permite rechazar la H0 de normalidad del error. 
+
+---
+ 
+ (c) Check for large leverage points.
+```{r}
+halfnorm(hatvalues(model), labs = rownames(sat))
+augment(model) %>%
+    filter(.hat > 2*(p/n)) %>%
+    pander()
+
+```
+
+Para evaluar los valores extremos en el modelo, utilizamos dos gráficos. 
+
+ + La gráfica de los valores ajustados versus los residuales estandarizados ($\hat{y} \times \sqrt{|{\hat{\epsilon}}|}$)
+ + Una gráfica de *media normal (halfnormal)* versus los residuales estandarizados. De esta manera se pueden identificar los valores mas extremos en $X$. 
+
+En este caso podemos ver que los valores para `Vermont` y `Maine` cumplen con las características para valores extremos. Llaman la atención también los puntos de `La Valle` y `V. De Geneve` que presentan valores extremos en una de las variables. 
+
+---
+
+ (d) Check for outliers.
+```{r}
+augment(model) %>%
+    mutate(.t.resid = rstudent(model)) %>%
+    filter(abs(.t.resid) > abs(qt(.05/(n * 2), n - p))) %>%
+    pander()
+```
+
+No hay *outliers* por este criterio. Tampoco se observan en el gráfico de las distancias de Cook en los gráficos diagnósticos
+ 
+---
+
+ (e) Check for influential points.
+ 
+```{r}
+par(mfrow = c(2,2))
+plot(model, 4)
+halfnorm(cooks.distance(model), labs = rownames(swiss))
+```
+
+
+
+```{r fig.height=7, fig.width=7}
+influence(model)$coefficients %>%
+    as_tibble(rownames = "id") %>%
+    gather(key, value, -id) %>%
+    ggplot(aes(fct_rev(id), value, group = key)) +
+    geom_line(alpha = .75)+
+    coord_flip() +
+    geom_hline(yintercept = 0, linetype = 3, color = "darkred") +
+    facet_grid(~ key, scales = "free") +
+    scale_colour_viridis_d(end=.85) 
+```
+
+
+
+```{r}
+colMeans(swiss) %>% pander()
+```
+
+```{r}
+swiss %>%
+    rownames_to_column() %>%
+    filter(rowname %in% c("Porrentruy", "Sierre")) %>%
+    pander()
+```
+
+Hay varias observaciones que resultan influyentes. POr le criterio de distancias de Cook, destaca `Porrentruy` que en segundo gráfico podemos ver, modifica `agriculture` y `Infant.Mortality`. `Sierre` modifica `Infant.Mortality` hacia el otro sentido, tiene una mortalidad baja, y `Examination` baja.
+
+Hay dos puntos con alta palanca pero baja influencia, `La Valle` y `V. De Geneve`.
+
+---
+
+ (f) Check the structure of the relationship between the predictors and the response.
+
+En primer lugar me remito al gráfico de dispersión de (a), que permite reflejar la distribución y la relación 1 a 1 de las variables. 
+ 
+ 
+```{r}
+car::avPlots(model)
+```
+
+La estructura parece correcta. Podemos ver como `Sierre` se aleja de la tendencia de los modelos. 
+
+```{r}
+par(mfrow = c(2,2))
+termplot(model, partial.resid = T, se = T)
+```
+ 
+ Se pueden observar los valores extremos pero con poca influencia en `Education` y en `Infant.Mortality`
+ Destaca la estructura bimodal de `Catholic`. Se podría realizar una transformación de la variable a una categorial o incluso binaria. 
+ 
+
+## 5. (Ejercicio 5 cap. 6 pág. 97) 
+Using the `cheddar` data, fit a model with `taste` as the response and the other three variables as predictors. Answer the questions posed in the first question.
+
+```{r}
+n <- dim(cheddar)[1]
+p <- dim(cheddar)[2]
+
+model <- 
+    lm(taste ~ Acetic + H2S + Lactic, data = cheddar)
+
+cheddar %>%
+    ggpairs(progress = F)
+```
+
+----
+
+ (a) Check the constant variance assumption for the errors.
+
+```{r, fig.cap="Gráficos Diagnósticos"}
+par(mfrow = c(2,2))
+plot(model)
+```
+
+No se ve un patrón el el gráfico de valores ajustados v/s residuales que haga pensar en problemas de varianza del error.
+ 
+---
+ 
+ (b) Check the normality assumption.
+ 
+```{r}
+shapiro.test(resid(model)) %>% pander()
+```
+
+El gráfico *Q-Q* sigue una distribución muy cercana a la recta y la prueba de S-W no permite desechar la H0 por lo que se puede asumir la normalidad de los residuales.
+
+---
+ 
+ (c) Check for large leverage points.
+```{r}
+halfnorm(hatvalues(model), labs = rownames(cheddar))
+augment(model) %>%
+    rowid_to_column() %>%
+    filter(.hat > 2*(p/n)) %>%
+    pander()
+```
+
+Los casos 20 y 26 son los casos mas extremos.
+
+---
+
+ (d) Check for outliers.
+```{r}
+augment(model) %>%
+    mutate(.t.resid = rstudent(model)) %>%
+    filter(abs(.t.resid) > abs(qt(.05/(n * 2), n - p))) %>%
+    pander()
+```
+
+No hay outliers según este criterio.
+ 
+---
+ 
+ (e) Check for influential points.
+ 
+```{r}
+plot(model, 4)
+halfnorm(cooks.distance(model), labs = rownames(cheddar))
+```
+
+
+```{r fig.height=7, fig.width=7}
+influence(model)$coefficients %>%
+    as_tibble(rownames = "id") %>%
+    mutate(id = factor(id, levels = c(1:n))) %>%
+    gather(key, value, -id) %>%
+    ggplot(aes(fct_rev(id), value, group = key)) +
+    geom_line(alpha = .75)+
+    coord_flip() +
+    geom_hline(yintercept = 0, linetype = 3, color = "darkred") +
+    facet_grid(~ key, scales = "free")
+```
+
+Los casos 12 y 15 son casos influyentes.
+
+```{r}
+model_1 <- 
+    cheddar %>%
+    rownames_to_column() %>%
+    filter(rowname != "15") %>%
+    lm(formula = taste ~ Acetic + H2S + Lactic, data = .)
+
+
+
+pander(model)
+pander(model_1)
+```
+
+El caso 15 modifica el coeficiente de `Acetic` en 2 , y `Lactic` en casi 2. 
+
+---
+
+ (f) Check the structure of the relationship between the predictors and the response.
+
+
+```{r}
+car::avPlots(model)
+```
+
+
+```{r}
+par(mfrow = c(2,2))
+termplot(model, partial.resid = T)
+```
+
+NO se ven mayores problemas estructurales en los gráficos. 
+
+
+## 6. (∗) (Ejercicio 6 cap. 6 pág. 98)
+Using thehappydata, fit a model withhappyas the response and the other four variables aspredictors. Answer the questions posed in the first question.
+
+## 7. (∗) (Ejercicio 7 cap. 6 pág. 98)
+Using thetvdoctordata, fit a model withlifeas the response and the other two variables aspredictors. Answer the questions posed in the first question.
+
+## 8. (∗) (Ejercicio 8 cap. 6 pág. 98)
+For thedivusadata, fit a model withdivorceas the response and the other variables, except yearas predictors. Check for serial correlation.
+
+## 9. (Ejercicio 3 cap. 7 pág. 110)
+Using the `divusa` data:
+
+ (a) Fit a regression model with `divorce` as the response and `unemployed`, `femlab`, `marriage`, `birth` and `military` as predictors. Compute the condition numbers and interpret their meanings.
+
+```{r}
+# Miramos colinearidad
+divusa %>%
+select(-year, -divorce) %>%
+  cor() %>%
+  corrplot.mixed(., lower = "number", upper = "circle", tl.pos = "lt")
+
+model <- lm(divorce ~ unemployed + femlab + marriage + birth + military, data = divusa)
+```
+
+Podemos observar que si hay varios predictores que presenta correlación entre si.
+
+```{r}
+X <- model.matrix(model)[,-1]
+eig <- eigen(t(X) %*% X)
+
+eig$values
+(c_nums <- sqrt(eig$values[1] / eig$values))
+```
+Los *números de condición* son relativamente pequeños (< 30) por lo que a pesar de la correlación de parejas encontrada, no parece existir un problema grave de colinearidad. 
+
+
+ (b) For the same model, compute the VIFs. Is there evidence that collinearity causes some pre-dictors not to be significant? Explain.
+
+```{r}
+VIF <- vif(X)
+pander(rbind(vifs, SE = sqrt(vifs)))
+```
+
+Si bien hay algunas $X_i$ donde la VIF se aleja de 1 que es la ortogonalidad, tampoco se aleja demasiado. Donde más se aleja es en $X_{femlab}$ donde se puede interpretar que el error estándar aumenta en `r max(sqrt(VIF))`
+
+```{r}
+model_1 <-
+  lm(formula = divorce+2*rnorm(dim(divusa)[1]) ~ unemployed + femlab + marriage + birth + 
+    military, data = divusa)
+
+
+pander(model)
+pander(model_1)
+```
+
+A pesar de eso, si agregamos un poco de ruido el modelo se mantiene relativamente estable. 
+
+ (c) Does the removal of insignificant predictors from the model reduce the collinearity? Investigate.
+ 
+```{r}
+model_1 <-
+  lm(formula = divorce ~ unemployed + marriage + birth + military, data = divusa)
+
+model_2 <-
+  lm(formula = divorce ~ unemployed + femlab  + military, data = divusa)
+
+# Modelo original
+pander(model)
+
+# Modelo 1, divorce ~ unemployed + marriage + birth + military
+pander(model_1)
+# VIF model 1
+pander(vif(model_1))
+
+# Modelo 2, divorce ~ unemployed + femlab  + military
+pander(model_2)
+
+# VIF model 2
+pander(vif(model_2))
+
+
+```
+
+En este caso reviso dos modelos alternativos. Uno sin la variable `femlab` cuyo VIF era alta en l modelo original, y un segundo modelo con la variable `femlab` pero sin `marriage` ni `birth` que tienen una correlación de pareja alta con `femlab` y entre si. 
+ 
+ Los dos modelos alternativos pierden bastante poder explicativo lo que se ve reflejado en un $R^2$ mas pequeño, sobretodo el sin `femlab`. Por otra parte, es verdad que en el primer modelo sin `femlab` no baja la VIF (aumenta en las variables que tiene correlación, `birth` y `marriage`).
+ En el segundo modelo, sin `birth` y `marriage`, la $R^2$ baja, pero la VIF también. 
+ 
+Como conclusión, creo que el modelo original es correcto. 
+
+## 10. (Ejercicio 4 cap. 7 pág. 110)
+
+For the `longley` data, fit a model with `Employed` as the response and the other variables as predictors.
+
+ (a) Compute and comment on the condition numbers.
+ 
+```{r}
+model <- lm(Employed ~ ., data = longley)
+
+X <- model.matrix(model)[,-1]
+eig <- eigen(t(X) %*% X)
+
+eig$values
+(c_nums <- sqrt(eig$values[1] / eig$values))
+```
+Los *numeros de condición* son bastante altos al igual que los eigenvalues, lo que sugiere multicolinearidad
+
+---
+
+(b) Compute and comment on the correlations between the predictors.
+
+```{r}
+corrplot.mixed(cor(X), lower = "number", upper = "circle", tl.pos = "lt")
+```
+
+En este caso las variables predictoras tienen mucha mayor correlación entre si.
+
+---
+
+  (c) Compute the variance inflation factors.
+
+```{r}
+VIF <- vif(X)
+pander(rbind(vifs, SE = sqrt(vifs)))
+```
+
+En este caso excepto por `Armed.Forces`, y algo menos `Unemployed`, la mayoría de las variables predictoras correlacionan entre si, y hacen que aumente el error estándar del modelo. Es probable que un modelo mas simple pueda funcionar mejor.
+
+```{r}
+pander(model)
+```
+ 
+
+
+## 11. (Ejercicio 5 cap. 7 pág. 110)
+For the `prostate` data, fit a model with `lpsa` as the response and the other variables as predictors.
+```{r}
+model <- 
+  lm(lpsa ~ ., data = prostate)
+```
+
+
+ (a) Compute and comment on the condition numbers.
+ 
+```{r}
+X <- model.matrix(model)[,-1]
+eig <- eigen(t(X) %*% X)
+
+eig$values
+(c_nums <- sqrt(eig$values[1] / eig$values))
+```
+
+HAlgunos valores son altos y otros no, lo que sugiere  que podría haber multicolinerarida en varias combinaciones lineales.
+ 
+---
+
+ (b) Compute and comment on the correlations between the predictors.
+ 
+```{r}
+corrplot.mixed(cor(X), lower = "number", upper = "circle", tl.pos = "d")
+```
+
+Se corrobora lo anterior en la medida de que hay alguno de los predictores que correlacionan bastante, como el caso de `pgg45` con `gleason` y `lcp`; `lcp` con `svl` y `lcavol`.
+
+---
+ 
+ (c) Compute the variance inflation factors.
+ 
+```{r}
+VIF <- vif(X)
+pander(rbind(vifs, SE = sqrt(vifs)))
+```
+
+De todas formas, a pesar de la correlación, no parece haber un mayor problema al analizar la VIF. La mayoría de los predictores suman poco error
+
+
+## 12. (∗) (Ejercicio 8 cap. 7 pág. 111)
+Use the fat data, fitting the model described in Section 4.2.
+
+ (a) Compute the condition numbers and variance inflation factors. Comment on the degree ofcollinearity observed in the data.
+ (b) Cases 39 and 42 are unusual. Refit the model without these two cases and recompute thecollinearity diagnostics. Comment on the differences observed from the full data fit.
+ (c) Fit a model withbrozekas the response and justage,weightandheightas predictors.Compute the collinearity diagnostics and compare to the full data fit.
+ (d) Compute a 95% prediction interval forbrozekfor the median values ofage,weightandheight.
+ (e) Compute a 95% prediction interval forbrozekforage=40,weight=200andheight=73. Howdoes the interval compare to the previous prediction?
+ (f) Compute a 95% prediction interval forbrozekforage=40,weight=130andheight=73. Arethe values of predictors unusual? Comment on how the interval compares to the previous twoanswers.
+
+# Ejercicios del libro de Carmona1. 
+
+## (∗) (Ejercicio 9.1 del Capítulo 9 página 172)
+ Realizar el análisis completo de los residuos del modelo de regresión parabólico propuesto en lasección 1.2 con los datos de tráfico.2. 
+
+## (∗) (Ejercicio 9.2 del Capítulo 9 página 172)
+ Realizar el análisis completo de los residuos de los modelos de regresión simple y parabólico pro-puestos en la sección 1.2 con los datos de tráfico, pero tomando como variable respuesta la velocidad(sin raíz cuadrada). Este análisis debe justificar la utilización de la raíz cuadrada de la velocidadcomo variable dependiente.

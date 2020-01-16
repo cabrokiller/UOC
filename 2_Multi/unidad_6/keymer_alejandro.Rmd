@@ -1,0 +1,363 @@
+---
+title: "Análisis de correspondencias"
+author: "Alejandro Keymer"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse, FactoMineR, factoextra)
+```
+
+
+#### 1. Sea N = (nij) la matriz I × J de frecuencias absolutas observadas de la siguiente tabla
+
+$$
+\begin{matrix}
+  &  E1 & E2 & E3 \\
+A1 & 6 & 1 & 11 \\
+A2 & 1 & 3 & 11 \\
+A3 & 4 & 25 & 0 \\
+A4 & 2 & 2 & 20 
+\end{matrix}
+$$
+
+donde se han contabilizado unos animales en función de su especie E1, E3 y E3 y el área o región A1, A2, A3 y A4, de modo que I = 4 y J = 3 en este caso.
+
+##### a) Escribir la tabla como el objeto tabla.N de R con sus nombres de filas y de columnas.
+Para ello podemos entrar los datos en una hoja de cálculo como se puede ver en la figura 1. A continuación seleccionamos las celdas, incluyendo las que contienen las etiquetas, y las copiamos al portapapeles. Entonces con el siguiente código1 los cargamos en R:
+
+```
+tabla <- read.table("clipboard")
+tabla.N <- as.table(as.matrix(tabla))
+```
+
+
+```{r include=FALSE}
+mat <- matrix(c(6,1,4,2,1,3,25,2,11,11,0,20), ncol = 3)
+rownames(mat) <- c('A1', 'A2', 'A3', 'A4')
+colnames(mat) <- c('E1', 'E2', 'E3')
+tabla.N <- as.table(mat)
+```
+
+```
+tabla <- read.table("clipboard")
+tabla.N <- as.table(as.matrix(tabla))
+```
+
+
+##### b)
+Calcular la matriz de frecuencias relativas $F = (f_{ij})$, donde $f_{ij} = n_{ij}/n$ y donde $n = n.. = \sum_{i=1}^I \sum_{j=1}^J n_{ij} .$
+Si en R el objeto tabla.N contiene las frecuencias absolutas, $n$ es `sum(tabla.N)`. Al resultado lo llamaremos tabla.F.
+
+```{r}
+(tabla.F <- tabla.N / sum(tabla.N))
+```
+
+
+
+##### c)
+Calcular las frecuencias relativas marginales para las filas (que llamaremos pesos o masas)
+$f_{i·} = \sum^J_{j=1}{f_{ij}}$ , $i = 1, · · · , I$ o matricialmente $f = F1$
+
+donde $1 = (1, · · · , 1)'$.
+
+Calcular las frecuencias relativas marginales para las columnas (que llamaremos fila media)
+$f_{·j} = \sum^I_{i=1}{f_{ij}}$ , $i = 1, · · · , J$ o matricialmente $f = F'1$
+
+Observemos que en R estos vectores se pueden obtener con la función apply así:
+
+```
+margin.f <- apply(tabla.F,1,sum)
+margin.c <- apply(tabla.F,2,sum)
+```
+
+También así
+```
+margin.f <- margin.table(tabla.F,1)
+margin.c <- margin.table(tabla.F,2)
+```
+
+Utilizar también la función addmargins() para ver la tabla con las marginales.
+
+```{r}
+margin.f <- margin.table(tabla.F, 1)
+margin.c <- margin.table(tabla.F, 2)
+
+addmargins(tabla.F)
+```
+
+
+##### d) El siguiente paso es calcular la matriz de frecuencias relativas condicionadas al total de la fila:
+$P = D^{−1}_f F$
+
+donde $D_f$ es la matriz diagonal con los elementos del vector $f$.
+Cada fila de esta nueva matriz es un vector $p'_i$ (escrito en columna) que llamaremos *perfil* de
+la fila $i$.
+
+Para calcular los perfiles podemos hacerlo matricialmente,
+
+`tabla.P <- diag(1/margin.f) %*% tabla.F`
+
+aunque es más eficiente esto:
+
+`tabla.P <- sweep(tabla.F, 1, margin.f, "/")`
+
+En todo caso la tabla de perfiles se puede calcular directamente desde la matriz $N$ de frecuencias
+absolutas:
+`perfiles <- prop.table(tabla.N, 1)`
+
+```{r}
+(tabla.P <- diag(1/margin.f) %*% tabla.F)
+(perfiles <- prop.table(tabla.N, 1))
+```
+
+
+
+##### e) 
+El objetivo del Análisis de Correspondencias es representar las $I$ filas (también las columnas) o puntos del espacio $RJ$ en un espacio de dimensión inferior.  
+Como en este caso las filas de $P$ o perfiles estan en un espacio de dimensión 3, podemos dibujarlas como puntos con ayuda del paquete rgl.
+
+```{r echo=TRUE}
+require(rgl)
+# dibujamos los ejes
+rgl.lines(c(0,1.2),c(0,0),c(0,0))
+rgl.lines(c(0,0),c(0,1.2),c(0,0))
+rgl.lines(c(0,0),c(0,0),c(0,1.2))
+# el plano
+rgl.lines(c(0,0),c(0,1),c(1,0),size=2)
+rgl.lines(c(0,1),c(1,0),c(0,0),size=2)
+rgl.lines(c(0,1),c(0,0),c(1,0),size=2)
+# los puntos
+#rgl.points(perfiles[,3],perfiles[,1],perfiles[,2],size=4)
+rgl.texts(perfiles[,3],perfiles[,1],perfiles[,2],text=row.names(perfiles))
+```
+
+
+
+Con el ratón se puede mover el gráfico y observar que los puntos pertenecen todos a un mismo plano ya que sus elementos suman 1, de manera que se pueden representar en un espacio de dimensión $J − 1$ o inferior.
+La figura 2 muestra una representación bidimensional que se obtiene con el siguiente código:
+
+```{r}
+tabla.x <- 1 - perfiles[,1] - perfiles[,3]/2
+tabla.y <- perfiles[,3] * sqrt(3)/2
+plot.new()
+lines(c(0,1,0.5,0),c(0,0,sqrt(3)/2,0), col="gray", lwd=2)
+text(c(0,1,0.5),c(0,0,sqrt(3)/2),labels=colnames(perfiles))
+text(tabla.x,tabla.y,labels=rownames(perfiles))
+```
+
+##### f) 
+Calcular el punto medio de las filas o centroide.
+Para ello recordemos que hemos llamado vector de pesos o masas al vector $f$. Si calculamos la media ponderada de las filas de $P$ o perfiles con esos pesos $w_i = f_{i·}$, el resultado es:
+
+$$\bar{p} = \frac{\sum^I_{i=1} \omega_ip_i}{\sum^I_{i=1}\omega_i} = P'D_f1 = F'D^{−1}_f D_f1 = F'1 = c$$
+
+Es decir, el punto medio es el vector de c de frecuencias relativas marginales para las columnas. Añadir este punto a la figura 2 y observar que efectivamente es el centroide de los puntos que representan a las filas.
+
+```{r}
+apply(perfiles, 2, mean)
+```
+
+```{r}
+mus <- apply(perfiles, 2, mean)
+cent.x <- 1 - mus[1] - mus[3]/2
+cent.y <- mus[3] * sqrt(3)/2
+plot.new()
+lines(c(0,1,0.5,0),c(0,0,sqrt(3)/2,0), col="gray", lwd=2)
+text(c(0,1,0.5),c(0,0,sqrt(3)/2),labels=colnames(perfiles))
+text(tabla.x,tabla.y,labels=rownames(perfiles))
+text(cent.x,cent.y,labels="c")
+```
+
+#### 2.
+Calcular la matriz de distancias ji-cuadrado entre los perfiles de la tabla 1 y su inercia total. Observar que la distancia ji-cuadrado entre perfiles equivale a la distancia euclídea entre los vectores transformados.
+
+```{r}
+c <- apply(perfiles, 2, mean)
+
+#t(perfiles[,1] - perfiles[,2]) %*% diag(1/c) %*% (perfiles[,1] - perfiles[,2])
+
+
+analogue::distance(tabla.N, method = "chi.square")
+
+
+```
+
+
+
+#### 3.
+Escalado multidimensional
+Con la matriz de distancias ji-cuadrado entre los perfiles podemos realizar un escalado multidimensional.
+Hallar las coordenadas principales para las filas de la matriz de correspondencias del ejercicio 1.
+Repetir el procedimiento con las columnas y realizar la representación simultánea.
+
+
+#### 4.
+Análisis de componentes principales. Podemos considerar la matriz Y como una matriz de datos y buscar su representación en dimensión reducida. Sin embargo, para ser coherentes con la definición de inercia deberemos utilizar los pesos o masas de cada fila y no únicamente la distancia euclídea entre filas. Esto se puede hacer con la matriz y sus componentes principales. Hay que maximizar $a'Z'Za$ con la restricción $a'a = 1$.
+La solución se obtiene de los valores y vectores propios de la matriz simétrica $Z'Z$ o, mejor, de la descomposición en valores singulares de la matriz $Z$. Nos interesa esta última opción por simetría y para la representación simultánea de filas y de columnas. A partir de la matriz de frecuencias absolutas `tabla.N`, los pasos son los siguientes:
+
+a) En primer lugar calculamos la matriz de correspondencias $F$
+`tabla.F <- tabla.N / sum(tabla.N)`
+
+b) Calculamos las masas de filas y columnas y sus matrices diagonales e inversas “minus half”
+```
+margin.f <- apply(tabla.F,1,sum)
+margin.c <- apply(tabla.F,2,sum)
+Df <- diag(margin.f)
+Dc <- diag(margin.c)
+Dfmh <- diag(1/sqrt(margin.f))
+Dcmh <- diag(1/sqrt(margin.c))
+```
+Las dos últimas instrucciones crean $D^{−1/2}_f$ y $D^{−1/2}_c$
+
+c) La matriz $Z$ es
+`Z <- Dfmh %*% tabla.F %*% Dcmh`
+Sin embargo y para evitar que tengamos un valor propio 1, inútil ya que es una solución trivial,
+es mejor estandarizar la matriz de correspondencias y utilizar la matriz
+
+$Z = D^{−1/2}_f(F − fc')D^{−1/2}_c$
+
+`Z <- Dfmh %*% (tabla.F - margin.f %o% margin.c) %*% Dcmh`
+
+d) Ahora ya podemos calcular la descomposición de $Z$
+
+`Z.svd <- svd(Z)`
+
+y las coordenadas principales (pc) y estándares (sc)
+```
+filas.sc <- Dfmh %*% Z.svd$u
+cols.sc <- Dcmh %*% Z.svd$v
+filas.pc <- filas.sc %*% diag(Z.svd$d)
+cols.pc <- cols.sc %*% diag(Z.svd$d)
+```
+
+e) Las inercias principales son $\lambda_k = \alpha^2_k , k = 1, . . . ,K$, donde $K = min(I −1, J −1)$ y $\alpha_k$ son los valores singulares de $Z$.
+
+`inercias <- Z.svd$d^2`
+¡Y ya está! Este es el algoritmo de cálculo del análisis de correspondencias. Podemos representar
+las coordenadas que queramos.
+
+
+#### 5.
+La tabla 1 muestra los colores de pelo y de ojos de un gran número de personas.
+Hallar la solución bidimensional del análisis de correspondencias
+```{r}
+tab <- 
+    matrix(c(688,116,584,188,4,
+         326,38,241,110,3,
+         343,84,909,412,26,
+         98,48,403,681,81),
+       byrow = T, ncol= 5, dimnames = list(c('e_light','e_blue','e_med','e_dark'), c('h_fair','h_red','h_med','h_dark','h_black'))) %>%
+    as.table()
+```
+
+
+a) Como un escalado multidimensional de filas y de columnas con la distancia ji-cuadrado.
+
+```{r}
+dt <- analogue::distance(tab, method = "chi.square")
+
+cmdscale(dt)
+```
+
+
+b) Como un análisis de componentes principales sobre la matriz Z estandarizada.
+
+```{r}
+
+```
+
+
+c) Con la función ca() del paquete ca de R.
+```{r}
+mod_ca <- ca::ca(tab)
+
+plot(mod_ca)
+```
+
+
+Un plot() del resultado proporciona la representación en dos dimensiones.
+
+
+#### 6.
+La tabla smoke del paquete ca contiene la clasificación de los empleados de una empresa según su
+nivel profesional (cinco grupos) y sus hábitos fumadores (cuatro grupos).
+
+##### a)
+Dibujar un mapa óptimo del AC bidimensional y asimétrico, con las filas en coordenadas principales (proyecciones de los perfiles) y las columnas en coordenadas estándares (proyecciones de los vértices). El mapa asimétrico se puede conseguir con la opción map="rowprincipal" de la función plot() para un ca.
+
+```{r}
+mod_smoke <- ca::ca(smoke)
+
+plot.ca(mod_smoke, map = "rowprincipal")
+```
+
+
+##### b)
+Dibujar un mapa asimétrico, con las columnas en coordenadas principales y las filas en coordenadas estándares.
+```{r}
+plot.ca(mod_smoke, map = "colprincipal")
+```
+
+
+
+#####c)
+Dibujar un mapa simétrico3 de los datos sobre los hábitos de los fumadores, es decir, representar tanto las filas como las columnas en coordenadas principales.
+
+```{r}
+plot.ca(mod_smoke, map = "symbiplot")
+```
+
+
+#### 7.
+El AC se utiliza ampliamente para analizar datos en ecología. Los datos del archivo benthos.xls que se pueden hallar en la web www.carme-n.org corresponden a los recuentos de 92 especies marinas identificadas en 13 muestras del fondo marino del mar del Norte. La mayor parte de las muestras se obtuvieron cerca de una plataforma petrolífera que producía una cierta contaminación del fondo marino. Existen dos muestras, utilizadas como referencia, supuestamente no contaminadas, que se obtuvieron lejos de la zona de influencia de la plataforma petrolífera.
+
+```{r}
+url <- 'http://www.ogi-nic.net/CARME-N/download/benthos.xls'
+
+download.file(url, destfile="benthos.xls", mode='wb')
+
+benthos <- readxl::read_excel("benthos.xls", sheet = "92EKOBIO", .name_repair = "unique") %>%
+    rename(label = ...1)
+```
+
+
+##### a)
+Calcular la inercia total.
+
+```{r}
+pacman::p_load(gplots)
+dt <- as.table(as.matrix(benthos))
+
+
+model_bent <- 
+    benthos %>%
+    column_to_rownames('label') %>%
+    ca()
+
+summary(model_bent)
+
+
+```
+
+
+##### b)
+Representar los datos en un mapa asimétrico con las estaciones de muestreo en coordenadas principales y las especies en coordenadas estándares, es decir, el mapa asimétrico de los perfiles de las muestras (columnas) y de los vértices de las especies (filas).
+
+```{r}
+fviz_ca_biplot(model_bent, map = "colprincipal")
+```
+
+
+##### c)
+Identificar en el mapa las 7 especies más abundantes e interpretar los resultados en cuanto a las muestras y la contaminación.
+
+```{r}
+fviz_eig(model_bent)
+```
+
+
+#### 8.
+Recordemos los datos de los 24 meses observados por Florence Nightingale que pueden obtenerse en la página. http://understandinguncertainty.org/node/214. donde los 12 primeros son antes de aplicar sus nuevos métodos de cuidado en los hospitales militares. Consideremos las frecuencias de muertes por tres causas: Zymotic diseases, Wounds & injuries y All other causes, junto con la cuarta categoría de soldados en activo que se obtiene al restar los soldados muertos por alguna causa del total.
+Con esa tabla de contingencia realizar un análisis de correspondencias completo y valorar e interpretar el resultado.

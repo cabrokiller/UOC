@@ -1,0 +1,516 @@
+---
+title: "Análisis Multivariante - Ejercicios 1.1 "
+author: "Alejandro Keymer"
+output: 
+  html_document: 
+    highlight: textmate
+    theme: readable
+---
+
+```{r}
+# cargo los datos del libro y las funciones
+# cargo las bibliotecas que utilizo
+source('https://www.york.ac.uk/depts/maths/data/everitt/chap1huswif.dat')
+source('https://www.york.ac.uk/depts/maths/data/everitt/chiplot.r')
+pacman::p_load(MASS, tidyverse, ggExtra, scatterplot3d, aplpack, broom, scatterplot3d)
+```
+
+
+# 1. Estadísticos
+#### 1. Para la base de datos crabs del paquete MASS de R:
+a) Estudiar la base de datos con la ayuda y las funciones str() y summary().  
+```{r}
+# a)
+
+str(crabs)
+summary(crabs)
+```
+
+b) Calcular estadísticos descriptivos como la media, la mediana, la varianza, etc. de las variables numéricas, tanto para todos los datos, como para las especies y los sexos por separado.  
+```{r}
+# b)
+# creo una función para el cálculo de los estadísticos
+summ <- function(df) {
+    df %>%
+        summarise(
+            p25 = quantile(value, probs = 0.25),
+            mean = mean(value),
+            median = median(value),
+            p75 = quantile(value, probs = 0.75),
+            sd = sd(value),
+            var = var(value)
+        )
+}
+
+db <-
+    crabs %>%
+    select(-index) %>%
+    gather(key, value, -sp, -sex)
+
+# Estadísticas de todos los datos    
+db %>%
+    group_by(key) %>%
+    summ()
+
+# Estadísticos por especie
+db %>%
+    group_by(sp, key) %>%
+    summ()
+
+# Estadísticos por sexo
+db %>%
+    group_by(sex, key) %>%
+    summ()
+```
+
+c) Hallar los cinco números descriptivos de cada variable numérica. Utilizar la función fivenum().
+```{r}
+# c) 
+crabs %>%
+    select(FL:BD) %>%
+    map_df(~ fivenum(.x)) %>%
+    rowid_to_column(var = "fivenum")
+```
+
+d) Hallar las matrices de varianzas y covarianzas de las variables numéricas según especie y sexo.
+
+```{r}
+# d)
+# cov para sexo masculino
+crabs %>%
+    filter(sex == "M") %>%
+    select(FL:BD) %>%
+    cov() 
+
+# cov para sexo femenino
+crabs %>%
+    filter(sex == "F") %>%
+    select(FL:BD) %>%
+    cov()
+
+# cov para especie Orange
+(cov_spO <- 
+    crabs %>%
+    filter(sp == "O") %>%
+    select(FL:BD) %>%
+    cov())
+
+# cov para especie Azul
+(cov_spB <- 
+crabs %>%
+    filter(sp == "B") %>%
+    select(FL:BD) %>%
+    cov())
+```
+
+e) Comparar cada especie con medidas globales de variabilidad: varianza total tr(S), varianza media tr(S)/p, varianza generalizada |S| y varianza efectiva |S| 1/p.  
+
+```{r}
+# e)
+covs <- list("Orange" = cov_spO, "Blue" = cov_spB)
+
+# en este caso hay 100 y 100 de cada especie
+p <- length(crabs) / 2
+
+## varianza total tr(S)
+map(covs, function(x) sum(diag(x)))
+
+## varianza media tr(S)/p
+map(covs, function(x) sum(diag(x)) / p)
+
+## varianza generalizada
+map(covs, det)
+
+## varianza efectiva
+map(covs, function(x) det(x)^1/p)
+```
+
+
+#### 2. (∗) Para la base de datos huswif del libro de Everitt(2005)2
+#### 3. (∗) Para la base de datos airpoll del libro de Everitt(2005).
+
+#### 4. Entre los 10 elementos muestrales o parejas casadas (con papeles o no) de la base de datos huswif del libro de Everitt(2005):
+a) Calcular las distancias euclídeas con la función dist de R y expresarlas en forma de matriz.
+```{r}
+# a)
+huswif %>%
+    dist() %>%
+    as.matrix() 
+```
+
+b) Calcular las distancias de K.Pearson y dar la matriz de distancias.
+
+```{r}
+# b)
+## 1 - sum(x_i y_i) / sqrt [sum(x_i^2) sum(y_i^2)]
+amap::Dist(huswif, method = "pearson", diag = T, upper = T) 
+```
+
+
+c) Calcular la distancia de Mahalanobis (sin cuadrado) entre la primera y la última de las parejas (huswif[1,] y huswif[10,]).
+
+```{r}
+# c)
+# ?? no entiendo como se puede hacer esto... que media se utiliza para centrar y que cov? 
+# Al utilizar la cov de los datos filtrados, me da error porque el sistema es singular
+
+S <- try(solve(cov(huswif[c(1,10),])))
+S_tot <- solve(cov(huswif))
+
+# con la cov total:
+as.matrix(huswif[1,] - huswif[10,]) %*% S_tot %*% t(as.matrix(huswif[1,] - huswif[10,]))
+
+
+```
+
+d) Calcular las distancias al cuadrado de Mahalanobis de cada pareja al vector de medias y su correspondiente matriz de covarianzas. Probar ?mahalanobis en R.
+```{r}
+# d)
+(huswif %>%
+    mahalanobis(. , colMeans(.), cov(.)) -> hw_dis)
+
+```
+
+
+e) Realizar un qqplot entre los cuantiles de una distribución ji-cuadrado con 5 grados de libertad y las distancias al cuadrado de Mahalanobis. ¿Se ajustan? También se puede utilizar la función chisplot de Everitt.
+
+
+
+```{r}
+# e) no estoy seguro de si entiendo lo que dice la pregunta, pero por lo que
+# entiendo, el plot de un distribucion chi^2 con 5 DF y las distancias
+# caluculadas, es lo que devuelve la funcion de chisplot.
+# Mi version en ggplot
+
+tibble(
+  chis_q = qchisq(c((1:10)/10), 5),
+  distancia = sort(hw_dis)
+) %>% 
+  ggplot(aes(chis_q, distancia)) +
+  geom_point()
+
+
+chisplot(as.matrix(huswif))
+```
+
+
+
+
+#### 5. (∗) Estudiar el ajuste de las distancias al cuadrado de Mahalanobis para los datos de airpoll del
+libro de Everitt a una distribución ji-cuadrado.
+Utilizar un qqplot o un chisplot de Everitt. También podemos utilizar el gráfico de la función
+outlier del paquete psych.
+
+#### 6. Con la base de datos huswif del libro de Everitt(2005):
+a) Realizar una estandarización univariante del tipo
+b) Realizar una estandarización multivariante del tipo
+c) Observar que la distancia euclídea entre las filas de datos tras la estandarización multivariante coinciden con la distancia de Mahalanobis de los datos originales.
+
+```{r}
+# a)
+
+```
+
+
+
+#### 7. Comprobar que la desviación típica generalizada en el caso de dos variables es...
+
+
+#### 8. Medidas de dependencia lineal con las variables numéricas de la base de datos crabs del paquete MASS de R, únicamente para los datos de la especie Blue y sexo Macho:
+a) Hallar la correlación entre las variables CL i CW. Calcular la matriz de correlaciones R de todas las variables numéricas.
+```{r}
+# a)
+crabs %>%
+    filter(sp == "O",
+           sex == "M") %>%
+    select(CL, CW) %>%
+    cor()
+```
+
+b) Hallar la correlación múltiple entre la variable BD y el resto.
+```{r}
+# b)
+crabs %>%
+    filter(sp == "O",
+           sex == "M") %>%
+    select(FL, RW, CL, CW, BD) %>%
+    lm(data = ., BD ~ FL + RW + CL + CW) %>%
+    tidy()
+
+```
+
+c) El coeficiente de correlación parcial es una medida de dependencia directa entre dos variables.
+
+
+
+
+
+
+# 2. Gráficos
+#### 9. Con las variables CL y CW de la base de datos crabs del paquete MASS de R:
+a) Crear el diagrama de dispersión de las dos variables y sus histogramas marginales.
+```{r}
+p <- ggplot(data = crabs, aes(CL, CW)) + geom_point()
+
+ggMarginal(p, type = "histogram")
+``` 
+
+b) Crear el diagrama de dispersión de las dos variables y sus diagramas de caja marginales.
+
+```{r}
+ggMarginal(p, type = "box")
+```
+
+## 10. Con la base de datos crabs del paquete MASS de R, realizar los siguientes diagramas de caja múltiples:
+a) Para comparar las variables según especie.
+```{r}
+# a) 
+crabs %>%
+    gather(key, value, -sex, -sp, -index) %>%
+    ggplot(aes(key, value, color = sp)) +
+    geom_boxplot() +
+    scale_color_viridis_d(begin = .2, end = .8)
+```
+
+b) Para comparar las variables según sexo.
+```{r}
+# b) 
+crabs %>%
+    gather(key, value, -sex, -sp, -index) %>%
+    ggplot(aes(key, value, color = sex)) +
+    geom_boxplot() +
+    scale_color_viridis_d(begin = .2, end = .8)
+```
+
+c) Para comparar las variables según especie y sexo.
+```{r}
+# c) 
+crabs %>%
+    gather(key, value, -sex, -sp, -index) %>%
+    unite(det, sp, sex) %>%
+    ggplot(aes(key, value, color = det)) +
+    geom_boxplot() +
+    scale_color_viridis_d(end = .85)
+```
+
+
+
+
+## 11. Con la base de datos crabs del paquete MASS de R, realizar un matriz de diagramas de dispersión según especie y sexo con la instrucción pairs().
+a) Añadir los histogramas de cada variable a la diagonal.
+b) Añadir la recta de regresión a cada diagrama de dispersión.
+
+```{r}
+panel.hist <- function(x, ...)
+{
+    usr <- par("usr"); on.exit(par(usr))
+    par(usr = c(usr[1:2], 0, 1.5) )
+    h <- hist(x, plot = FALSE)
+    breaks <- h$breaks; nB <- length(breaks)
+    y <- h$counts; y <- y/max(y)
+    rect(breaks[-nB], 0, breaks[-1], y, col = "darkgreen", ...)
+}
+
+crabs %>%
+    filter(sex == 'M') %>%
+    select(4:8) %>%
+    pairs(., panel = panel.smooth, diag.panel = panel.hist)
+crabs %>%
+    filter(sex == 'F') %>%
+    select(4:8) %>%
+    pairs(., panel = panel.smooth, diag.panel = panel.hist)
+
+crabs %>%
+    filter(sp == 'B') %>%
+    select(4:8) %>%
+    pairs(., panel = panel.smooth, diag.panel = panel.hist)
+
+crabs %>%
+    filter(sp == 'O') %>%
+    select(4:8) %>%
+    pairs(., panel = panel.smooth, diag.panel = panel.hist)
+
+```
+
+
+## 12. Con la base de datos huswif del libro de Everitt(2005):
+a) Calcular algún gráfico de dispersión 3D con la función scatterplot3d() del paquete scatterplot3d.
+
+```{r}
+# a)
+scatterplot3d(huswif$Hage, huswif$Hage, huswif$Hagefm)
+```
+
+b) Realizar un gráfico de dispersión en dos dimensiones de las variables edad del marido y edad de la mujer. Añadir con la función symbols() la variable edad del marido en el primer matrimonio.
+```{r}
+# b)
+huswif %>%
+    ggplot(aes(Wage, Hage)) + 
+    geom_point() +
+    geom_point(aes(x = Hagefm), shape = 3)
+```
+
+## 13. (*) Representar con caras de Chernoff las parejas de la base de datos huswif del libro de Everitt(2005).
+
+```{r}
+faces(huswif)
+```
+
+## 14. (*) Representar con un gráfico de estrellas los vectores de medias de todas las variables numéricas de la base de datos crabs del paquete MASS de R en los cuatro grupos, según especie y sexo.4
+
+```{r}
+crabs %>%
+    gather(key, value, -sex, -sp, -index) %>%
+    group_by(sp, sex, key) %>%
+    summarise(mean = mean(value)) %>%
+    unite("cat", sex, sp) %>%
+    spread(key, mean) -> st
+
+st[,2:6]
+
+stars(st[,2:6], key.loc = c(6,5))
+
+```
+
+## 15. Señalar los datos atípicos en la base de datos crabs, únicamente para los datos de la especie Blue y sexo Macho:
+a) Según un criterio univariante como donde med(x) es la mediana de las observaciones y MAD(x) la mediana de las desviaciones en valor absoluto respecto a la mediana.
+
+```{r}
+dt <- 
+crabs %>%
+  filter(sex == "M",
+         sp == "O") %>%
+  select(FL:BD)
+
+# a) 
+# los datos atipicos son:
+# Creo que tengo bien la fórmula, pero no me sale
+# ningun valor atípico que la satisfaga con  > 5.... ?!?!
+dt %>%
+  rowid_to_column() %>%
+  gather(key, value, -rowid) %>%
+  group_by(key) %>%
+  filter(abs(value - median(value)) / mad(value, constant = 1) > 5) %>%
+  spread(key, value)
+```
+
+b) Con otro criterio univariante como donde Q1,Q3 son los cuartiles y IQR el rango intercuartílico.
+```{r}
+# b)
+# los datos atipicos son:
+# Creo que tengo bien la fórmula, pero no me sale
+# ningun valor atípico fuera de 1.5 IQR
+
+dt %>%
+  rowid_to_column() %>%
+  gather(key, value,-rowid) %>%
+  group_by(key) %>%
+  filter(
+    value > quantile(value, .75) + 1.5 * IQR(value) |
+      value < quantile(value, 0.25) - 1.5 * IQR(value)
+  ) %>%
+  spread(key, value)
+
+```
+
+c) Con un criterio multivariante sencillo como 
+1) Se busca el 50% de los datos con menor distancia de Mahalanobis al centro ¯x, media de todos los datos.
+```{r}
+# c) 1
+
+S <- cov(dt)
+X <- apply(dt, 2, mean)
+X_tot <- mean(X)
+
+# Me confude la noción  de 'media de todos los datos'. Me hace mas sentido
+# calcular la distancia a la media de cada columna, que es lo que hago a
+# continuación.
+
+(new_dt <- 
+dt %>%
+  bind_cols(maha = mahalanobis(dt, X, S)) %>%
+  arrange(maha) %>%
+  top_frac(.5, -maha))
+
+# en caso de que se utilice "la media de todos los datos" las distancias calculadas son muy grandes, y no comprendo su significado...
+
+dt %>%
+  bind_cols(maha = mahalanobis(dt, X_tot, S)) %>%
+  arrange(maha) %>%
+  top_frac(.5, -maha)
+ 
+```
+
+2) Se calculan la media ¯xR y la matriz de covarianzas SR con ese conjunto reducido de datos.
+```{r}
+# c) 2
+dt_r <- new_dt %>% select(-maha)
+(S_r <- cov(dt))
+
+(X_r <- apply(dt_r, 2, mean))
+
+(X_r_t <- mean(X_r))
+```
+
+3) Se calculan las distancias de Mahalanobis d2 M de todos los datos a la media x¯R con la matriz de covarianzas SR.
+```{r}
+# c) 3
+mahalanobis(dt_r, X_r_t, S_r)
+```
+
+4) Se consideran atípicos los datos tales que d2 M > p + 3√2p, donde p es el número de variables.
+```{r}
+# c) 4
+# esto creo que no lo he resuelto bien. Creo que el problema lo tengo al
+# calcular la distancia a la media de todos los datos. No comprendo las
+# magnitudes de las distancias que calculo
+vars <- ncol(dt_r)
+
+dt_r %>%
+  mutate(maha = mahalanobis(.,X_r_t, S_r),
+         test =  vars + (3 * sqrt(2 * vars)),
+         atipico = maha > vars)
+
+```
+
+d) También podemos utilizar la distancia de Mahalanobis d2 M calculada con estimadores robustos como los que se obtienen con la función cov.rob del paquete MASS. Uno de los métodos más utilizados es el minimum covariance determinant o MCD que calcula los estimadores de centro y covarianza con un grupo de datos reducido, precisamente el que minimiza el determinante de la covarianza (una de las medidas de variabilidad multivariante). Con estas distancias robustas, podemos dibujar un gráfico para observar por inspección los puntos más extremos. Algunos autores sugieren como punto de corte la cola superior al 97.5 % de la distribución ji-cuadrado asociada a la distancia de Mahalanobis. Otro gráfico con estas distancias robustas es el ajuste a la distribución ji-cuadrado para observar los valores máximos.
+
+```{r}
+# d)
+MASS::cov.rob(dt_r, method = "mcd")
+```
+
+
+
+#### 16. Realizar un boxplot bivariante con la funciónbvbox()de Everitt para las variables CL y CW dela base de datoscrabsdel paqueteMASSdeR.¿Cuales son las medidas de dispersión robustas que se utilizan en el gráfico?
+```{r}
+# 
+url <- 'https://www.york.ac.uk/depts/maths/data/everitt/chiplot.r'
+source(url)
+
+crabs %>%
+  select(CL,CW) %>%
+  as.matrix() %>%
+  bvbox(.)
+
+```
+
+#### 17.(∗)Un grupo muy importante de técnicas de representación de datos que no hemos explicado enlos documentos de esta asignatura son losgráficos en panel(trellis) que podemos hallar en elpaquetelatticedeR.Uno de los lugares donde informarse sobre los gráficos trellis es:http://www.stat.auckland.ac.nz/~ihaka/787/lectures-trellis.pdf. Escribir un breve informe (menos de una página) que describa las características de los gráficostrellis y discutir sus méritos.¿Qué hace diferentes a los gráficos trellis de otras técnicas de representación de datos multivariantes?¿Pueden ser útiles para ti? ¿Cuando crees que es mejor usar gráficos en trellis que otras técnicas?Mejor si se incluyen referencias a las fuentes.
+
+Los gráficos que utilizan paneles o gráficos Trellis son particularmente utiles en análisis multivariante. La utilización de paneles permite abstrer una dimensión de los datos en los diferentes paneles y de esta froma se permite una visión mas clara de los datos. La utilización de paneles en combinación con otras técnicas de representación que pueden incluir el utilizar colores y fromas, permite la visualización de datos multivariables de una manera clara. A continuación presento un ejemplo en el que se grafica la misma información con una version con/sin paneles. 
+fuente: http://www.cookbook-r.com/
+```{r}
+reshape::tips %>%
+  ggplot(aes(total_bill, tip/total_bill, color = day)) +
+  geom_point() +
+  scale_colour_viridis_d()
+
+
+reshape::tips %>%
+  ggplot(aes(total_bill, tip/total_bill, color = day)) +
+  geom_point(shape = 1) +
+  scale_colour_viridis_d(end = .85) +
+  facet_grid(sex ~ day)
+```
+
+#### 18.(∗)El paqueteggplot2, creado por Hadley Wickham, ofrece un poderoso lenguaje gráfico paracrear gráficos elegantes y complejos. Su popularidad en la comunidad R ha explotado en los últimosaños. Originalmente basado en la gramática de los gráficos de Leland Wilkinson,ggplot2permitecrear gráficos que representan datos numéricos y categóricos univariantes y multivariantes de maneradirecta. La agrupación se puede representar por color, símbolo, tamaño y transparencia. La creaciónde gráficos en panel (es decir, con condiciones) es relativamente simple. Repetir el ejercicio 10 con los gráficos del paqueteggplot2

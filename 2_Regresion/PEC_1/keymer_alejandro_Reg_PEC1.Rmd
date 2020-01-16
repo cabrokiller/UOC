@@ -1,0 +1,869 @@
+---
+title: "Regresión, modelos y métodos - PEC 1"
+author: "Alejandro Keymer"
+date: "24/11/2019"
+output:
+  html_document: 
+    df_print: kable
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T,  message = F, warning = F, cache=F)
+```
+
+
+
+```{r}
+pacman::p_load(pander, rcompanion, faraway, tidyverse, broom, corrplot, GGally)
+```
+
+
+## Problema 1 (30 pt.)
+**Gladstone (1905) estudió la relación entre el peso del cerebro humano y algunas medidas de la cabeza en personas de ambos sexos y diferentes edades, fallecidas por diversas causas. Los datos se hallan agrupados por sexos y grupos de edad en el documento original y en el archivo  `cbrain.dat`, los dos adjuntos. Estos datos fueron estudiados por Blakeman et al. (1905) desde el punto de vista descriptivo y con diversos modelos de regresión.**
+
+#### (a) 
+**Incorporar a R esta base de datos, teniendo en cuenta la codificación de los valores faltantes *(missingvalues)*. Identificar con su número correspondiente las observaciones con algún dato faltante. ¿Cuantas observaciones son? Eliminar de la base de datos todas las observaciones para las que falta algún dato. Fijaros que conservamos la columna `obs` que permite identificar las observaciones en la base de datos original.**
+
+```{r}
+# leer la tabla y modificar tipos de variable. 
+cbrain_raw <- 
+    read.table("cbrain.dat", skip = 18, header = T, na.strings = '-1') %>%
+    mutate(obs = as.character(obs),
+           cause = factor(cause, levels = c(1,2,3), labels = c('A', '-', 'C')),
+           sex = factor(sex, levels = c(0,1), labels = c('F', 'M')),
+           ageclass = factor(ageclass, levels = c(0,1,2), 
+                             labels = c('child', 'age 20-45', 'over 45'))
+    )
+```
+
+Importo la base con `read.table` y utilizo operados de `dplyr` para convertir el *tipo* de algunas de las variables a factores.
+
+
+```{r}
+# identificar filas con algun valor con NA
+cbrain_raw %>%
+    filter(!complete.cases(.))
+
+cbrain <- 
+    cbrain_raw %>%
+    filter(complete.cases(.)) 
+```
+
+Para identificar los valores *NA* utilizo un filtro con el inverso de `complete.cases`. De esta forma obtengo el listado de las filas con *al menos* un valor *NA*. 
+
+
+Para responder exactamente a la pregunta;  
+
++ El número de observaciones con al menos un valor *NA* es: `r cbrain_raw %>% filter(!complete.cases(.)) %>% tally() %>% pull(n)`.  
++ Las observaciones `obs` con valores *NA* son: `r cbrain_raw %>% filter(!complete.cases(.)) %>% pull(obs)`.
+
+---
+
+
+#### (b) 
+**Calcular la variable `new.cephalic` calculando la relación $(B/L)×100$ y estudiar la discrepancia con `cephalic` con una recta de regresión.**
+```{r}
+cbrain <- 
+    cbrain %>%
+    mutate(new.cephalic = breadth / length * 100)
+
+# crear modelo lineal
+model_new <- 
+    cbrain %>%
+    column_to_rownames("obs") %>%            # mantenemos la etiqueta 'obs' como nombre de fila
+    lm(cephalic ~ new.cephalic, data = .)
+
+# Creamos una gráfica con la curva de regresion
+cbrain %>%
+    select(cephalic, new.cephalic) %>%
+    ggplot(aes(cephalic, new.cephalic)) +
+    geom_smooth(method = 'lm', formula = y ~ x, color = "red", size = .5) +
+    geom_point(shape = 1, size = 2)
+```
+
+En la recta de regresión se puede observar una relación que sigue de manera fidedigna la recta, salvo por dos puntos, uno mas discordante que el otro. 
+
+---- 
+
+##### (i)
+**¿Cual es la correlación entre ambas?**
+
+```{r}
+(cef_cor <- cor(cbrain$cephalic, cbrain$new.cephalic))
+```
+
+Para el cálculo de al correlación de ambas variables utilizo la función `cor`. La correlación es `r cef_cor`, Lo que se acerca mucho a 1. 
+
+---
+
+##### (ii)
+**¿Podemos aceptar que la pendiente es 1?**
+
+$H0: \beta_1 = 1$
+
+```{r}
+# construir IC para el 95%
+pander::pander(confint(model_new))
+```
+
+Se puede construir el intervalo de confianza para el modelo, y es posible observar que el intervalo incluye el 1. Lo mas correcto sería utilizar los intervalos de confianza, ya que además de el valor de la pendiente (o los límites de los valores) da una idea del tamaño del efecto del modelo. 
+Pero respondiendo a la pregunta, no hay diferencia entre considerar la pendiente 1 o `r coef(model_new)[2]`, que es el coeficiente del modelo. 
+
+---
+
+##### (iii)
+**¿Podemos aceptar con un contraste que el coeficiente de intercepción es cero y la pendiente es 1 (las dos cosas a la vez)?**
+
+
+No se cómo se puede hacer este contraste. Un modelo con pendiente 1 que pase por el origen implica que, 
+
+$ y_i = 0 + 1 \times x_i $
+
+Si $x=y$ entonces la RSS de este modelo es 0. 
+
+si tenemos que: 
+$F = (\frac{TSS - RSS}{RSS}\times \frac{n-m}{m-1})$
+
+Si la RSS es 0 entonces la prueba F de contraste de hipótesis no se puede hacer, ya que divide por 0.
+
+
+
+```{r}
+# alternativa usando offset
+# No tengo del todo claro si este modelo es coherente con y = 0 + 1 * new.cephalic
+# pero en teoría hace sentido. 
+model_0 <- lm(cephalic ~ 0 + offset(1*new.cephalic), cbrain)
+
+anova(model_0, model_new)
+
+```
+
+Si el modelo es correcto, entonces el contraste **no** permite desechar la H0, y por tanto se podría concluir que el modelo original pasa por el origen y tiene pendiente 1, o que ambas variables son iguales. 
+
+---
+
+##### (iv)
+**En esta regresión, identificar posibles residuos atípicos o outliers (sin hacer ningún contraste) y valorar si el dato de cephalic anotado en la base de datos original es una errata.**
+
+```{r}
+# gráfica de distancias de hatvalues v/s residuales std
+plot(model_new, 5)
+
+# gráfica de residuales studetizados
+p_df <- 
+augment(model_new) %>%
+    mutate(t.resid = rstudent(model_new),
+           obs = as.integer(cbrain$obs))
+
+ggplot(p_df, aes(obs, abs(t.resid))) +
+    geom_segment(aes(xend = obs, yend = 0)) +
+    geom_text(data = filter(p_df, abs(t.resid) > abs(qt(
+        .05 / length(resid(model_new)) * 2, (length(resid(model_new)) - length(coef(model_new)))
+    ))), aes(label = obs), nudge_y = .3) +
+    labs(y = "residuales studetizados")
+    
+
+``` 
+
+Utilizo dos métodos para valorar la presencia de *outliers*. 
+
+* Gráfica de *residuos estandarizados* v/s *valores extremos* + curvas de distancias de Cook
+* Gráfica de los *residuos studentizados* v/s observaciones
+
+En las gráficas es claramente visible que hay dos valores que sobrepasan al resto de manera peculiar. En el gráfico de valores extremos, podemos observar que si bien son valores que no tienen mucha palanca, poseen una distancia de Cook alta y alejada del resto de los valores para este modelo. 
+
+Finalmente en el cálculo de los residuos studentizados, se ve que los valores sobrepasan el valor de la corrección de Bonferroni, estrategia que se plantea en el libro de Faraway. 
+
+En este sentido se puede establecer que el valores `192`, es efectivamente un *outlier* y habría que revisar mejor la obs `128`, ya que también es algo anómala. 
+
+Se puede valorar que este dato puede constituir un *errata*. Mirando el archivo de texto escaneado, efectivamente la obs `192` tiene un error en la transcripción. 
+
+---
+
+#### (c)
+**Estudiar la regresión del peso del cerebro `brnweight` con la variable producto `size`. ¿Veis alguna dificultad?**
+
+```{r}
+# gráfica de dispersión
+cbrain %>%
+    select(brnweight, size) %>%
+    ggpairs()
+
+# modelo
+model_w <- 
+cbrain %>%
+    column_to_rownames('obs') %>%  # arreglamos id a obs
+    lm(brnweight ~ size, .)
+```
+
+La dificultad es que si bien hay una correlación directa entre las dos variables, las variables tienen una distribución con un componente bimodal. Es probable que existan varios puntos con *valores extremos* que puedan ejercer un efecto de *palanca (leverage)*
+
+
+Mirando los datos estos corresponden a cerebros de la categoría `child` por lo que se podría asumir que en la muestra hay un número de cerebros muy pequeños ( y que pesan poco ) pero que distorsionan la distribución.
+
+```{r}
+plot(model_w, c(1,5))
+halfnorm(hatvalues(model_w), labs = cbrain$obs, nlab = 4, main = "Hat values")
+halfnorm(cooks.distance(model_w), labs = cbrain$obs, nlab = 4, main = ("Distancia de Cook"))
+```
+
+La gráfica de *residuales* v/s *ajustados* permite ver cierto patrón, en la que hay un grupo de casos separado del resto. En las gráficas de *residuales* v/s *leverage* y la media normal de los *hatvalues* se puede apreciar como claramente este grupo de casos tiene un efecto palanca importante. Finalmente en las gráficas de la distancia de Cook se puede observar que varias de estas observaciones con alto *leverage* también son observaciones influyentes.
+
+
+---
+
+##### (i)
+**Eliminar del estudio los individuos de menos de 20 años y repetir la regresión. ¿Mejora?**
+
+```{r}
+ad_cbrain <- 
+    cbrain %>%
+    filter(ageclass != 'child')
+    
+    
+# gráfica de matriz de dispersion
+ad_cbrain %>%
+    select(brnweight, size) %>%
+    ggpairs()
+
+# modelo reducido
+model_ad <-
+    ad_cbrain %>%
+    column_to_rownames('obs') %>%
+    lm(brnweight ~ size, .)
+```
+
+
+
+```{r}
+plot(model_ad, c(1,5))
+halfnorm(hatvalues(model_ad), labs = ad_cbrain$obs, nlab = 4, main = "Hat values")
+halfnorm(cooks.distance(model_ad), labs = ad_cbrain$obs, nlab = 4, main = ("Distancia de Cook"))
+```
+
+
+La distribución de ambas variables al quitar los < de 20 años se aproxima bastante mejor a la normalidad, y se puede ver una relación mas homogénea, sin tantos valores extremos. En la gráfico de *fitted* v/s *residuals*  se observa un patrón mucho mas homogéneo y sin un patrón determinado, lo que hace pensar en una mejor homogeneidad de las varianzas Por otra parte, la gráfica de *leverage* v/s *residuos estandarizados* también es mas homogénea, confirmando que hay menos valores extremos con demasiado *leverage*
+
+---
+
+
+##### (ii)
+**Estudiar la normalidad del error.**
+
+Estudiamos la normalidad del error de ambos modelos; el modelo completo y el modelo reducido, sin los menores de 20 años. 
+
+```{r, out.width = c('50%', '50%'), fig.show='hold' }
+plot(model_w, 2, sub = "Modelo completo")
+plot(model_ad, 2, sub = "Modelo reducido")
+```
+
+Calculamos un test de Shapiro Wilk para los residuos de ambos modelos. 
+
+```{r}
+# modelo completo
+pander(shapiro.test(resid(model_w)))
+
+# modelo reducido
+pander(shapiro.test(resid(model_ad)))
+```
+
+Podemos estudiar la normalidad con un patrón gráfico utilizando una gráfica de Q-Q que gráfica la distribución de los residuales v/s los quantiles de una distribución normal. La gráfica debiera acercarse de manera lo mas fidedigna a la recta diagonal para asumir normalidad. 
+
+Otra estrategia es una prueba estadístico, como el caso del test de Shapiro-Wilk.
+
+En el caso de la opción gráfica se puede ver como ambos modelos se aleja de la recta, sobretodo en las *colas* de la distribución. La prueba de S-W por otra parte permite rechazar la H0 de normalidad en ambos casos. Con estos elementos podemos establecer que los residuos no siguen una distribución normal en este modelo. 
+
+---
+
+##### (iii) 
+**Dado que la variable `size` es un producto de tres variables, proponer una transformación potencia $h(x)=x^λ$ que mejore su simetría o “normalidad”.**
+
+```{r}
+# utilizar transformTukey para obtener lambda
+(lambda <- transformTukey(ad_cbrain$size, quiet = T, plotit = F, returnLambda = T))
+
+# if (lambda >  0){TRANS = x ^ lambda} 
+# if (lambda == 0){TRANS = log(x)} 
+# if (lambda <  0){TRANS = -1 * x ^ lambda} 
+
+# tranformar con lambda Finalmente, después de la debate en el foro, utilizo el modelo reducido (sin los < 20) calculada
+# en el punto (i). Creo que de esta forma el ejercicio queda mas coherente. La Transfromacion es mas efectiva y se sige
+# mejor el documento al ejercicio 2
+```
+
+EL valor de lambda de la función `transformTukey` se acerca bastante a $0.\bar{3}$ o $\frac{1}{3}$ lo que tiene mas sentido en la medida de que la variable size es la multiplicación de tres medidas. Por estos motivos decido hacer la transformación con:
+
+$`h_size` = `size` ^{1/3}$
+
+```{r}
+cbrain_tk <- 
+    ad_cbrain %>%
+    mutate(h_size = size^(1/3))
+```
+
+---
+
+
+##### (iv)
+**Repetir la regresión con la variable `size` transformada y valorar el modelo.**
+```{r}
+model_tk <- 
+    cbrain_tk %>%
+    column_to_rownames('obs') %>%
+    lm(brnweight ~ h_size, .)
+
+# resumen del modelo
+pander(summary(model_tk))
+```
+
+
+En primer lugar se estudia la normalidad de los residuales. Se realizan una gráfica *Q-Q* para valorar normalidad de los residuos y un test de Shapiro Wilk
+
+```{r}
+plot(model_tk, 2)
+pander(shapiro.test(resid(model_tk)))
+```
+
+
+Se construyen gráficas de *residuales* v/s *ajustados* para valorar la homogeneidad de la varianza y de *leverage* v/s *residuos estandarizados*  y un gráfico de media normal para para valorar valores extremos.
+
+```{r}
+halfnorm(hatvalues(model_tk), labs = cbrain_tk$obs)
+plot(model_ad, c(1,5))
+```
+
+Finalmente para evaluar valores influyentes construimos gráficas de la distancia de Cook y valoramos posible outliers. 
+
+```{r}
+halfnorm(cooks.distance(model_tk), labs = cbrain_tk$obs)
+
+
+p_df <- 
+augment(model_tk) %>%
+    mutate(r.student = rstudent(model_tk))
+
+lim <- abs(qt(.05 / length(resid(model_tk)) * 2,
+              (length(resid(model_tk)) - length(coef(model_tk)))))
+    
+p_df %>%ggplot(aes(as.integer(.rownames), abs(r.student))) +
+    geom_segment(aes(yend = 0, xend = as.integer(.rownames))) +
+    geom_hline(yintercept = lim, color = "red") +
+    geom_text(data = filter(p_df, abs(r.student) > lim),
+              aes(label = .rownames), nudge_y = .3) +
+    labs(y = "residuales studetizados")
+
+
+```
+
+EN general el modelo no parece presentar mayor problema. La distribución de los residuales parece bastante homogénea. Hay algunos valores extremos, que tienen influencia que habría que mirar con mas detención, y un valor con un valor residual *studentizado* bastante alto, con un valor que supera el límite de la p corregida por Bonferroni, por lo que podría constituir un *outlier* y habría que valorar el eliminarlo. 
+
+---
+
+##### (v)
+**Hallar el intervalo de confianza para la pendiente al 97 %.**
+```{r}
+# calcular IC al 97 %
+confint(model_tk, level = 0.97) %>%
+    as_tibble(rownames = "coeficiente")
+```
+EL intervalo de confianza se calcula fácilmente con la función `confint`
+
+---
+
+#### (d) 
+**Comparar las rectas de regresión que relacionan el peso del cerebro `brnweight` con la variable transformada h(`size`) para hombres y para mujeres sin los menores de 20 años. ¿Son paralelas? ¿Son iguales?**
+
+```{r}
+# graficamos para ver las relaciones.
+cbrain_tk %>%
+    ggplot(aes(h_size, brnweight, color = sex)) +
+    geom_point() +
+    stat_smooth(method = "lm", fullrange = T) +
+    scale_color_brewer(type = 'qual', palette = 2)
+```
+
+
+Para valorar si las rectas son paralelas es decir, con la misma pendiente pero no necesariamente el mismo intercepto, debemos hacer modelos "extendidos". 
+
+```{r}
+# modelo "extendido" para valorar pendientes
+y <- cbrain_tk$brnweight
+x.m <- c(cbrain_tk$h_size[cbrain_tk$sex == 'M'], rep(0,99))
+x.f <- c(rep(0,130), cbrain_tk$h_size[cbrain_tk$sex == 'F'])
+
+# contrastes
+MM <- c(rep(1,130), rep(0,99))
+FF <- c(rep(0,130), rep(1,99))
+
+# modelo completo extendido ( sin interecepto porque agregamos contrastes )
+mod_c <- lm(y ~ 0 + MM + FF + x.m + x.f)
+
+# modelo con = pendiente
+mod_ll <- lm(y ~ 0 + MM + FF + cbrain_tk$h_size)
+
+# son las rectas paralelas? 
+anova(mod_ll, mod_c)
+```
+
+Para valorar si las rectas son paralelas, en primer lugar volvemos a hacer el modelo completo pero en forma "extendida", es decir, sin intercepto por los términos para hacer los contrastes.
+
+Al hacer el contraste de modelos, no se puede rechazar la H0, por lo que se acepta que las rectas son paralelas.
+
+```{r}
+# modelo null contraste
+mod_0 <- lm(y ~ cbrain_tk$h_size)
+
+# son las rectas iguales?
+anova(mod_0, mod_ll)
+
+```
+
+Podemos hacer un segundo contraste del modelo de rectas paralelas con el modelo *original* (reescrito para que la anova se lea mejor), para valorar si es que hay diferencias o no. La H0 es que los modelos no son diferentes y por las rectas paralelas del modelo `mod_ll` se pueden considerar que son coincidentes.
+
+En este caso efectivamente no se puede rechazar la H0, por lo que se consideran las rectas como coincidentes.
+
+
+
+```{r}
+# interacciones conh_size
+mod_int <- aov(brnweight ~ h_size * sex, cbrain_tk )
+
+# no intereacciones 
+mod_no <- aov(brnweight ~ h_size + sex, cbrain_tk)
+
+# miramos si la interaccion es significativa
+anova(mod_int, mod_no)
+```
+Otra alternativa es hacer una ANCOVA para evaluar si la interacción entre la variable `sex` es significativa para $Y$. Matemáticamente es lo mismo que hemos hecho arriba para valorar si las pendientes son las mismas. 
+
+---
+
+## Problema 2 (45 pt.)
+**Con la base de datos `cbrain` del problema anterior sin los menores de 20 años, calcular el modelo de regresión que tiene como respuesta el peso del cerebro `brnweight` y como predictoras las variables `age`, `sex`, `height`, `headht`, `lenght`, `breadth`, h(`size`) y `circum`. La transformación $h()$ es la que hemos decidido en el apartado (c) del problema anterior.**
+
+```{r}
+# modelo completo
+model_full <- 
+    lm(brnweight ~ age + sex + height + headht + length + breadth + h_size + circum, data = cbrain_tk)
+
+model_null <-
+    lm(brnweight ~ 1, data = cbrain_tk)
+```
+
+---
+
+#### (a)
+**Escribir el modelo de regresión estimado e interpretar el coeficiente de la variable $h(`size`)$.**
+
+```{r}
+# resumen del modelo
+pander(summary(model_full))
+cfs <- round(coef(model_full),2)
+```
+
+$$
+y_i = 
+`r cfs[1]` +
+`r cfs[2]`*age  +
+`r cfs[3]`*sexM  +
+`r cfs[4]`*height  +
+`r cfs[5]`*headht \\ +
+`r cfs[6]`*length  +
+`r cfs[7]`*breadth  +
+`r cfs[8]`*(h)size  +
+`r cfs[9]`*circum
+$$
+
+Las unidades que utiliza h_size son las de $`size`^{lambda}$. Por cada unidad de h_size, el `brnweight` cambia en `r coef(model_full)['h_size']`, o por cada unidad de size $(cm^3)$ el peso cambia en `r coef(model_full)['h_size']^1/3`. Esta interpretación no tiene mucho sentido en la medida que el cambio en `h_size` se debe interpretar dentro del contexto de cambio en *todas las otras variables del modelo*. De hecho, no tiene mucho sentido pensar que hay una relación inversa entre peso y volumen, lo que hace pensar de que hay algo que esta mal en el diseño del modelo. 
+
+
+```{r}
+mod1 <- lm(brnweight ~ 0+ h_size, cbrain_tk)
+mod2 <- lm(brnweight ~ 0+ size, cbrain_tk)
+sumary(mod1)
+sumary(mod2)
+```
+
+---
+
+#### (b)
+**Utilizar un test F para determinar la significación de la regresión del modelo. ¿Qué significa esto último?**
+
+```{r}
+anova(model_null, model_full)
+```
+
+La función `summary` entrega los resultados de el test de F de la regresión del modelo. El test de hace una prueba de hipótesis entre el modelo completo y la $H0: \beta_i = 0$. En este caso la prueba permite rechazar $H0$ en la medida que el estadístico $F$ que refleja la diferencia de las RSS, es significativamente diferente del de la H0
+
+---
+
+##### (i)
+**¿Qué predictoras son significativas al 5 %?**
+
+```{r}
+tidy(model_full) %>%
+    filter(p.value < 0.05)
+```
+
+En este caso el único predictor significativo al 5% es `age`.
+
+---
+
+##### (ii)
+**¿Quiere esto decir que podemos eliminar del modelo las no significativas al 5 %?**
+
+
+En el modelo completo, el único valor que tiene un valor significativo es `age`. Esto *no* quiere decir que se pueda prescindir de los otros predictores, ya que el modelo completo que **si** resultaba explicativo, toma en cuenta *todos* los predictores y no sólo `age`. Para valorar *que* predictores tienen mayor o menor peso en el modelo de regresión se debe hacer uno a uno, comparando con el modelo completo, o utilizando una aproximación *stepwise*. 
+
+---
+
+##### (iii)
+**Calcular la matriz de correlaciones entre las variables continuas del modelo de regresión.**
+
+```{r}
+cor_full <- 
+    augment(model_full) %>%
+    select(brnweight:circum, -sex) %>%
+    cor()
+
+cor_full %>%
+    as_tibble(rownames = "variables")
+
+# grafica de correlacion con corrplot
+corrplot.mixed(cor_full)
+
+```
+
+La matriz de correlaciones (y su versión gráfica), permiten ver que varias de las variables tienen grados de correlación relativamente altos. 
+
+---
+
+##### (iii)
+**¿Cuales son las variables más correlacionadas? ¿Y las que menos? ¿Concuerdan con los resultados del modelo de regresión?**
+
+Con el ejercicio anterior es fácil de ver que las variables que mas correlacionan son, `h_size` con `circum`, `breadth`, `length` y `headht`, y `length` y `circum`.
+
+
+Por otra parte todas las variables de medidas correlacionan de manera positiva con la variable independiente del modelo, `brnweight`.Esto **no** es coherente con los resultado del modelo, en cuanto al coeficiente de `h_size` que nos dio una pendiente negativa. Este es un modelo con mucha colinearidad lo que puede ser problemático y ser la causa de la incongruencia descrita. 
+
+En este caso puede ser mas aconsejable por ejemplo hacer un análisis de componentes principales y hacer el modelo lineal con estos. 
+
+---
+
+#### (c)
+**Contrastar si podemos aceptar un modelo más simple sin las variables `headht`, `lenght`, `breadth`.**
+
+```{r}
+model_red <-
+    cbrain_tk %>%
+    column_to_rownames('obs') %>%
+    lm(brnweight ~ age + sex + height + h_size + circum, .)
+
+pander(summary(model_red))
+anova(model_red, model_full)
+
+```
+
+En este caso la H0 es que no hay diferencias entre los dos modelos. En este caso la prueba resulta no significativa por lo que no se puede rechazar la H0 y por criterio de parsimonia se puede elegir el modelo mas simple. Se ve además que el modelo reducido **si** es coherente con la tabla de correlaciones. 
+
+---
+
+#### (d)
+**En el modelo más simple del apartado anterior, ¿hay alguna observación con un alto leverage? ¿Y con una gran influencia? Dibujar los gráficos oportunos para explicar el resultado.**
+
+Primero miramos las variables con mas *leverage*.
+```{r}
+n <- dim(model.matrix(model_red))[1]
+p <- dim(model.matrix(model_red))[2]
+lev.mean <- 2 * (p/n)
+
+df_model_red <- 
+    augment(model_red) %>%
+    mutate(obs = as.integer(.rownames))
+
+# gráfica de hat values
+ggplot(df_model_red, aes(obs, .hat)) +
+    geom_segment(aes(yend = 0, xend = obs)) +
+    geom_hline(yintercept = lev.mean, color = "red") +
+    geom_text(data = filter(df_model_red, .hat > lev.mean), aes(label = obs), nudge_y = .005)
+```
+
+Al generar un gráfico de los *hat values* podemos observar como hay varios valores con alto *leverage*, que superan el límite dado por $2\times \frac{p}{n}$, siendo uno, la obs `116` claramente superior.
+
+```{r}
+# halfnormal plot de Faraway
+halfnorm(hatvalues(model_red), nlab = 5, labs = cbrain$obs)
+
+# las top 5
+df_model_red %>%
+    top_n(5, .hat) %>%
+    select(obs, .hat, brnweight:circum) %>%
+    arrange(-.hat)
+```
+
+Otra alternativa es la gráfica media-normal, donde se ve algo similar. 
+
+---
+
+Datos influyentes
+
+```{r}
+# grafica de d de cook
+ggplot(df_model_red, aes(obs, .cooksd)) +
+    geom_segment(aes(yend = 0, xend = obs)) +
+    geom_hline(yintercept = 4/(n-p-2), color = "red") +
+    geom_text(data = filter(df_model_red, .cooksd > 4/(n-p-2)), aes(label = obs), nudge_y = .005)
+```
+
+
+En la gráfica de distancias de Cook, podemos observar que hay varios valores mayores a limite establecido como: $D >\frac{4}{n-p-1}$. De todas formas, las distancias de Cook, son bastante pequeñas (lejanas a 1). En este caso el valor de la obs `116` además de tener alto `leverage` es influyente. 
+
+```{r}
+halfnorm(cooks.distance(model_red), nlab = 5 ,labs = ad_cbrain$obs)
+
+# los top 5
+df_model_red %>%
+    select(obs, .cooksd, brnweight:circum) %>%
+    top_n(5, .cooksd) %>%
+    arrange(-.cooksd)
+```
+
+El punto anterior se confirma con la gráfica de media normal. 
+
+---
+
+#### (e)
+**Con el modelo simple del apartado (c), dibujar el gráfico de regresión parcial con la variable predictora `h(size)`.**
+
+```{r}
+car::avPlots(model_red, terms = ~ h_size)
+```
+
+Al mirar la regresión parcial, la relación entre `h_size` y `brnweight` queda mas visible y es coherente. Al aislar `h_size` de las otras variables, es posible ver su relación con `brnewight`. 
+
+---
+
+#### (f)
+**Hallar el intervalo de confianza para la predicción del peso del cerebro, por el modelo simple, cuando un individuo toma los valores de la observación 5 de la base de datos.**
+
+```{r}
+ind_5 <- cbrain_tk %>%
+    filter(obs == 5) %>%
+    select(age, sex, height, h_size, circum)
+
+
+predict(model_red, newdata = ind_5, interval = "conf")
+```
+
+Si hablamos de **un** individuo en cuestión, lo que buscamos es la predicción del intervalo de confianza puntual
+
+---
+
+#### (g) 
+**Estimar la varianza del error y calcular su intervalo de confianza al 99 % en el modelo de regresión más simple del apartado (c).**
+
+Asumimos que la varianza del error se define por el estimador:
+
+$\sigma^2 = \sqrt{MSE}$
+
+$MSE = \frac{\sum^n_{i=1}{(y_i-\hat{y_i})^2}}{n-p}$
+
+Es posible estimar el intervalo de confianza utilizando la distribución de Chi cuadrado con un nivel de confianza del 99% 
+
+
+```{r}
+n <- length(model_red$residuals)
+p <- length(model_red$coefficients)
+
+# calculamos manualmente la varianza del error
+MSE <- (sum((ad_cbrain$brnweight - fitted(model_red))^2)) / (n-p)
+sqrt(MSE)
+
+# que coincide con el cálculo dado por el modelo lineal
+(S <- glance(model_red)$sigma)
+
+# calculamos los límites inferior y superior para un IC del 99%
+c(inf = (S * (n-p)) / qchisq(0.995, (n-p)), S, sup = (S * (n-p)) / qchisq(0.005, (n-p)))
+
+```
+
+---
+
+## Problema 3 (25 pt.)
+**En los ejemplos 5.3.2 y 5.6.3 del libro de Carmona y con los datos de la tabla 5.2 se ha estudiado el diseño crossover simplificado. En este problema vamos a considerar un diseño un poco más sofisticado y con más parámetros. En la página https://newonlinecourses.science.psu.edu/stat509/node/123/ se explican los diseños crossover con todo detalle. Nosotros nos vamos a centrar en el caso $2×2$ donde a dos grupos de pacientes se subministran dos fármacos o se realizan dos tratamientos de forma consecutiva en dos períodos de tiempo. En esta situación, los parámetros a considerar son: $μ$ media general, $α$ efecto del fármaco $A$, $β$ efecto del fármaco $B$ , $γ_1$ efecto del grupo 1 o secuencia $AB$, $γ_2$ efecto del grupo 2 o secuencia $BA$, $π_1$ efecto del primer período, $π_2$ efecto del segundo período, $λ_A$ o efecto de arrastre de $A$(first-ordercarryover effect) y $λ_B$ o efecto de arrastre de $B$. En total 9 parámetros. Como trabajar con 9 parámetros es complicado, en la tabla Design 11 dehttps://newonlinecourses.science.psu.edu/stat509/node/127/nos proponen un conjunto más reducido de la siguiente forma:**
+
+---
+
+#### (a)
+**Escribir la matriz de diseño reducida del modelo propuesto en la tabla anterior y calcular su rango. La matriz reducida tendrá 4 filas, una por cada situación experimental, y 6 columnas, una por cada parámetro. El rango representa el número efectivo de parámetros.**
+
+En primer lugar se describen las 4 situaciones experimentales con los parámetros. (El orden es el que luego utilizo para en el apartado d)
+
+$$
+y_{A1} = \mu_{A} + \nu + \rho \\
+y_{B2} = \mu_{B} + \nu - \rho + \lambda_A \\
+y_{B1} = \mu_{B} - \nu + \rho \\
+y_{A2} = \mu_{A} - \nu - \rho + \lambda_B \\
+$$
+
+Con estas situaciones se puede crear la matriz de diseño:
+
+```{r}
+mat <- 
+     matrix(
+         c(1, 0, 1, 1, 0, 0,
+           0, 1, 1,-1, 1, 0,
+           0, 1,-1, 1, 0, 0,
+           1, 0,-1,-1, 0, 1),
+         nrow = 4,
+         byrow = T
+     )
+
+colnames(mat) <- c('mu_A', 'mu_B', 'nu', 'rho', 'lambda_A', 'lambda_B' )
+rownames(mat) <- c('A1', 'B2', 'B1' , 'A2')
+mat
+```
+
+---
+
+#### (b)
+**Como el objetivo es contrastar si el efecto de los fármacos $A$ y $B$ se puede considerar similar, la hipótesis paramétrica a contrastar es $H0:α=β$ que es equivalente $H0:μ_A=μ_B$ con los nuevos parámetros. Probar que esta hipótesis NO es contrastable con la matriz de diseño del apartado anterior.**
+
+La hipótesis nula en forma vectorial es:
+
+$$
+H0:
+\begin{pmatrix}
+1 & -1 & 0 & 0 & 0 & 0 
+\end{pmatrix}
+\begin{pmatrix}
+\mu{A} \\
+\mu{B} \\
+\nu \\
+\rho \\
+\lambda_{A} \\
+\lambda_{B}
+\end{pmatrix}
+= 0
+$$
+
+Para valorar si la Hipótesis es contrastable utilizamos el método de añadir la fila de la hipótesis a la del diseño experimental y ver si cambia o no el rango de la matriz. Si el rango es diferente, la Hipótesis **no** es una combinación lineal de la matriz experimental y por tanto la Hipótesis **no** es contrastable.
+
+
+```{r}
+# vector de Hipotesis nula
+A <- c(1,-1,0,0,0,0)
+
+(rank_m <- qr(mat)$rank)
+(rank_h0 <- qr(rbind(mat, A))$rank)
+
+# El rango es igual? Las hipótesis son contrastables?
+rank_m == rank_h0
+```
+
+---
+
+#### (c)
+**Reducir el número de parámetros de forma que $λA=λB=λ$, es decir, el efecto de arrastre de A es igual al efecto de arrastre de B. Probar que la hipótesis principal de igualdad de efectos de los fármacos para este nuevo diseño SI es contrastable.**
+
+Las situaciones experimentales quedan así:
+
+$$
+y_{A1} = \mu_{A} + \nu + \rho \\
+y_{B2} = \mu_{B} + \nu - \rho + \lambda \\
+y_{B1} = \mu_{B} - \nu + \rho \\
+y_{A2} = \mu_{A} - \nu - \rho + \lambda \\
+$$
+
+Con este modelo reducido el contraste de hipótesis es:  
+
+
+$$
+H0:\begin{pmatrix}
+1 & -1 & 0 & 0 & 0 
+\end{pmatrix}
+\begin{pmatrix}
+\mu{A} \\
+\mu{B} \\
+\nu \\
+\rho \\
+\lambda\\
+\end{pmatrix}=0
+$$
+
+Se construye la matriz del diseño reducido:
+
+```{r}
+mat_2 <- 
+    matrix(
+        c(1, 0, 1, 1, 0,
+          0, 1, 1,-1, 1,
+          0, 1,-1, 1, 0,
+          1, 0,-1,-1, 1),
+        nrow = 4,
+        byrow = T
+    )
+colnames(mat_2) <- c('mu_A', 'mu_B', 'nu', 'rho', 'lambda' )
+rownames(mat_2) <- c('A1', 'B2', 'B1' , 'A2')
+mat_2
+```
+
+
+
+```{r}
+# vector de Hipotesis nula
+A <- c(1, -1, 0, 0, 0)
+
+(rank_mr <- qr(mat_2)$rank)
+(rank_h0 <- qr(rbind(mat_2, A))$rank)
+
+# El rango es igual? Las hipótesis son contrastables?
+rank_m == rank_h0
+```
+
+---
+
+#### (d)
+**Contrastar la hipótesis $H0:μA=μB$ con el modelo del apartado anterior y los datos de la tabla 5.2 del libro de Carmona. En un cierto orden, los datos de la variable respuesta en R son**
+
+```{r}
+Y <- c(17, 34, 26, 10, 19, 17, 8, 16, 13,11,
+       17, 41, 26, 3, -6, -4, 11, 16, 16,4,
+       21, 20, 11, 26, 42, 28, 3, 3, 16, -10,
+       10, 24, 32, 26, 52, 28, 27, 28, 21, 42)
+
+# matriz experimental de X
+X <-
+    tibble(
+        mu_a = c(sapply(mat_2[, 1], function(x)
+            rep(x, 10))),
+        mu_b = c(sapply(mat_2[, 2], function(x)
+            rep(x, 10))),
+        nu = c(sapply(mat_2[, 3], function(x)
+            rep(x, 10))),
+        rho = c(sapply(mat_2[, 4], function(x)
+            rep(x, 10))),
+        lambda = c(sapply(mat_2[, 4], function(x)
+            rep(x, 10)))
+    )
+
+# modelo completo 
+full <- lm( Y ~ 0 + mu_a + mu_b + nu + rho + lambda, X)
+
+# modelo sin los contrastes para valorar mu_a = mu_b
+null <- lm( Y ~ 0 + nu + rho + lambda, X)
+
+# contraste de modelos
+anova(null, full)
+
+```
+Para contrastar la $H0:\mu_{A} = \mu_{B}$, primero creamos los vectores de los contrastes con el modelo reducido. Posteriormente se construyen dos modelos; el modelo con todos los parámetros y el modelo que excluye los parámetros $\mu_{A}$ y $\mu_{B}$. Finalmente se realiza un contraste entre los dos modelos. 
+
+
+El contraste resulta en que se puede rechazar la H0, por lo que se puede asumir que las variables de tratamiento A y B no son iguales. 
+
+

@@ -1,0 +1,398 @@
+---
+title: "Estimación del modelo lineal - Ejercicios"
+author: "Alejandro Keymer"
+output: 
+  html_document:
+    highlight: textmate
+    theme: readable
+---
+
+
+# Ejercicios del libro de Faraway
+#### 1. (Ejercicio 1 cap. 2 pág. 30)
+The dataset teengamb concerns a study of teenage gambling in Britain. Fit a regression model with the expenditure on gambling as the response and the sex, status, income and verbal score as predictors. Present the output. 
+
+(a) What percentage of variation in the response is explained by these predictors?  
+
+(b) Which observation has the largest (positive) residual? Give the case number.  
+
+(c) Compute the mean and median of the residuals.  
+
+(d) Compute the correlation of the residuals with the fitted values.  
+
+(e) Compute the correlation of the residuals with the income.  
+
+(f) For all other predictors held constant, what would be the difference in predicted expenditure on gambling for a male compared to a female?  
+
+
+```{r}
+# Me he acostumbrado a la gramática de tidyverse, por lo que utilizo esta biblioteca
+pacman::p_load(faraway, broom, tidyverse)
+```
+
+
+```{r}
+# a) 
+# El porcentaje corresponde al valor de R2. en este caso utilizo la función
+# glance para mirarlo
+model_1 <- 
+    faraway::teengamb %>%
+    lm(gamble ~ sex + status + income + verbal, data = .)
+
+glance(model_1)$adj.r.squared
+```
+
+
+```{r}
+# b) 
+# El caso cuyo residual es el mas elevado (positivo) es:
+augment(model_1) %>%
+    rowid_to_column() %>%
+    top_n(1, .resid) %>%
+    pull(rowid)
+```
+
+
+```{r}
+# c)
+# la media y mediana son:
+augment(model_1) %>%
+    summarise(
+        media = mean(.resid),
+        mediana = median(.resid))
+```
+
+
+```{r}
+# d) correlación residual v/s fitted.values
+augment(model_1) %>%
+    summarise(
+        correlation = cor(.resid, .fitted)
+    )
+```
+
+
+```{r}
+# e)
+# correlación residuales v/s income:
+augment(model_1) %>%
+    summarise(
+        correlation = cor(.resid, income)
+    )
+```
+
+
+```{r}
+# f) 
+# Si todos los predictores quedan igual, se pide el poder explicativo de la
+# variable género. En este caso el sexo femenino (que se codifica como 1) se
+# asocia a una disminución en la media de gastos en apuestas de 25.9.
+
+faraway::teengamb %>%
+    lm(gamble ~ sex, data = .) %>%
+    tidy()
+```
+
+
+#### 2. (Ejercicio 2 cap. 2 pág. 30)
+The dataset uswages is drawn as a sample from the Current Population Survey in 1988. Fit a model with weekly wages as the response and years of education and experience as predictors. Report and give a simple interpretation to the regression coefficient for years of education. Now fit the same model but with logged weekly wages. Give an interpretation to the regression coefficient for years of education. Which interpretation is more natural?
+```{r}
+faraway::uswages %>%
+    select(educ,  wage) %>%
+    mutate(log_wage = log(wage)) %>%
+    gather(key, value, -educ) %>%
+    ggplot(aes(educ, value, color = key)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    facet_wrap(~ key, scales = "free_y")
+
+
+# Modelo 1 - Salario 
+# Por cada año de educacion, aumenta el salario en 51 dolares
+model_2.1 <- 
+    faraway::uswages %>%
+    lm(wage ~ educ + exper, data = .)
+
+tidy(model_2.1)
+
+# Modelo 2 - log Salario
+# Por cada año de educación, aumenta el salario en un 9% (beta x 100 %). 
+# La interpretación del modelo logarítmico es mucho mas natural y comprensible,
+# que la estimación en cifras absolutas.
+
+model_2.2 <- 
+    faraway::uswages %>%
+    lm(log(wage) ~ educ + exper, data = .)
+
+tidy(model_2.2)
+
+```
+
+
+##### 3. (∗) (Ejercicio 3 cap. 2 pág. 30)
+In this question, we investigate the relative merits of methods for computing the coefficients. Generate some artificial data by:
+```
+> x <- 1:20
+> y <- x+rnorm(20)
+
+```
+Fit a polynomial in x for predicting y. Compute βˆ in two ways — by lm() and by using the direct calculation described in the chapter. At what degree of polynomial does the direct calculation method fail? (Note the need for the I() function in fitting the polynomial, that is, lm(y ~ x + I(x^2)).
+
+
+#### 4. (Ejercicio 4 cap. 2 pág. 30)
+The dataset prostate comes from a study on 97 men with prostate cancer who were due to receive a radical prostatectomy. Fit a model with lpsa as the response and lcavol as the predictor. Record the residual standard error and the R2. Now add lweight, svi, lbph, age, lcp, pgg45 and gleason to the model one at a time. For each model record the residual standard error and the R2. Plot the trends in these two statistics.
+```{r}
+# esto se puede hacer como una iteracion con purrr... para la próxima...
+model_1 <- prostate %>%
+    lm(lpsa ~ lcavol, data = .) %>% glance
+model_2 <- prostate %>%
+    lm(lpsa ~ lcavol + lweight, data = .) %>% glance
+model_3 <- prostate %>%
+    lm(lpsa ~ lcavol + lweight + svi, data = .) %>% glance
+model_4 <- prostate %>%
+    lm(lpsa ~ lcavol + lweight + svi + lbph, data = .) %>% glance
+model_5 <- prostate %>%
+    lm(lpsa ~ lcavol + lweight + svi + lbph + age, data = .) %>% glance
+model_6 <- prostate %>%
+    lm(lpsa ~ lcavol + lweight + svi + lbph + age + lcp, data = .) %>% glance
+model_7 <- prostate %>%
+    lm(lpsa ~ lcavol + lweight + svi + lbph + age + lcp + pgg45, data = .) %>% glance
+model_8 <- prostate %>%
+    lm(lpsa ~ lcavol + lweight + svi + lbph + age + lcp + pgg45 + gleason, data = .) %>%
+    glance
+
+# plot
+bind_rows(model_1, model_2, model_3, model_4, model_5, model_6, model_7, model_8) %>%
+    select(adj.r.squared, sigma) %>%
+    rowid_to_column() %>%
+    gather(key, value, -rowid) %>%
+    ggplot(aes(rowid, value, color = key)) +
+    geom_line()
+
+```
+
+
+
+#### 5. (Ejercicio 5 cap. 2 pág. 30)
+Using the prostate data, plot lpsa against lcavol. Fit the regressions of lpsa on lcavol and lcavol on lpsa. Display both regression lines on the plot. At what point do the two lines intersect?
+```{r}
+model_1 <- lm(lcavol ~ lpsa, data = prostate)
+model_2 <- lm(lpsa ~ lcavol, data = prostate)
+
+plot(prostate$lpsa, prostate$lcavol)
+abline(model_1, col = "blue")
+# Para calcular los coeficientes de la recta del modelo 2, utilice los
+# coeficientes que aparecen en el modelo y calcule el valor para x.
+coef_2 <- c(-model_2$coefficients[1]/model_2$coefficients[2], 1/model_2$coefficients[2])
+abline(coef_2, col = "red")
+
+# calcular la intersección:
+# para calcular la intersección utilizo la
+# aproximación de solución de sistemas de variables con matrices que se propone en:
+# https://stackoverflow.com/questions/7114703/finding-where-two-linear-fits-intersect-in-r
+
+cm <- rbind(coef(model_1), coef_2) # matriz de coeficientes
+
+# intersección
+c(-solve(cbind(cm[,2],-1)) %*% cm[,1])
+
+```
+
+
+
+
+#### 6. (Ejercicio 6 cap. 2 pág. 30)
+Thirty samples of cheddar cheese were analyzed for their content of acetic acid, hydrogen sulfide and lactic acid. Each sample was tasted and scored by a panel of judges and the average taste score produced. Use the cheddar data to answer the following:
+
+(a) Fit a regression model with taste as the response and the three chemical contents as predictors. Report the values of the regression coefficients.
+
+(b) Compute the correlation between the fitted values and the response. Square it. Identify where this value appears in the regression output.
+
+(c) Fit the same regression model but without an intercept term. What is the value of R2 reported in the output? Compute a more reasonable measure of the good- ness of fit for this example.
+
+(d) Compute the regression coefficients from the original fit using the QR decomposition showing your R code.
+
+```{r}
+mod <-
+   cheddar %>%
+    lm(taste ~ Acetic + H2S + Lactic, data = .)
+
+# a) 
+tidy(mod)
+```
+
+
+```{r}
+# b) el valor calculado corresponde a R2
+augment(mod) %>%
+    summarise(cor_2 = cor(.fitted, taste)^2) %>%
+    pull(cor_2)
+```
+
+
+```{r}
+# c) En este caso podemos utilizar el test de Likelihood ratio, para valorar el
+# ajuste de los diferentes modelos.
+
+mod_0 <- 
+  lm(taste ~ 1, data = cheddar)
+mod <-
+  lm(taste ~ Acetic + H2S + Lactic, data = cheddar)
+mod_alt <- 
+  lm(taste ~ Acetic + H2S + Lactic -1, data =cheddar)
+
+
+lmtest::lrtest(mod_0, mod, mod_alt)
+
+```
+
+
+```{r}
+# d) Esta permitido utilizar `qr` ?
+qr_x <-
+cheddar %>%
+  mutate(intercept = 1) %>%
+  select(intercept, Acetic, H2S, Lactic) %>%
+  as.matrix() %>%
+  qr()
+
+vec_y <- 
+  cheddar %>%
+  pull(taste)
+
+# coeficientes
+backsolve(qr_x$qr, qr.qty(qr_x, vec_y))
+
+```
+
+
+#### 7. (Ejercicio 7 cap. 2 pág. 31)
+An experiment was conducted to determine the effect of four factors on the resistivity of a semiconductor wafer. The data is found in wafer where each of the four factors is coded as − or + depending on whether the low or the high setting for that factor was used. Fit the linear model resist ~ x1 + x2 + x3 + x4.
+
+(a) Extract the X matrix using the model.matrix function. Examine this to determine how the low and high levels have been coded in the model.
+
+(b) Compute the correlation in the X matrix. Why are there some missing values in the matrix?
+
+(c) What difference in resistance is expected when moving from the low to the high level of x1?
+
+(d) Refit the model without x4 and examine the regression coefficients and standard errors? What stayed the the same as the original fit and what changed?
+
+(e) Explain how the change in the regression coefficients is related to the correlation matrix of X.
+
+```{r}
+mod <- 
+wafer %>%
+    lm(resist ~ x1 + x2 + x3 + x4, data =.)
+
+# a) Los niveles se han codificado de manera binaria. 
+model.matrix(mod)
+```
+
+
+```{r}
+# b) Si la varianza es 0 (como aparece en el mensaje) la correlación es NA, como es el caso del intercepto
+model.matrix(mod) %>%
+    cor()
+```
+
+
+```{r}
+# c) Un aumento en la resistencia de 25.76
+summary(mod)
+```
+
+
+```{r}
+# d) Los coeficientes quedan igual (salvo el intercepto). El error estándar
+# aumenta un poco y cambian los valores de las t y las p y el valor de r2
+mod_2 <- wafer %>%
+    lm(resist ~ x1 + x2 + x3, data = .)
+
+tidy(mod)
+tidy(mod_2)
+glance(mod)
+glance(mod_2)
+```
+
+
+```{r}
+# e) La correlación 0 entre coeficientes los hace independientes. 
+```
+
+
+
+#### 8. (∗) (Ejercicio 8 cap. 2 pág. 31)
+
+
+# Ejercicios del libro de Carmona
+#### 1. (Ejercicio 2.1 del Capítulo 2 página 41)
+Una variable Y toma los valores y1, y2 y y3 en función de otra variable X con los valores x1, x2 y x3. Determinar cuales de los siguientes modelos son lineales y encontrar, en su caso, la matriz de diseño para x1 = 1, x2 = 2 y x3 = 3.
+
+a) yi = β0 + β1xi + β2(x^2i − 1) + ei
+
+b) yi = β0 + β1xi + β2e^xi + ei
+
+c) yi = β1xi(β2tang(xi)) + ei
+
+```{r}
+x_vec <- c(1,2,3)
+
+# a)
+a_mat <- function(x) c(1, x, x^2 -1)
+sapply(x_vec, a_mat) %>% t()
+```
+
+
+```{r}
+# b) 
+b_mat <- function(x) c(1, x, exp(1)^x)
+sapply(x_vec, b_mat) %>% t()
+```
+
+
+```{r}
+# c) No lineal
+```
+
+
+
+
+#### 2. (Ejercicio 2.4 del Capítulo 2 página 42)
+Cuatro objetos cuyos pesos exactos son β1, β2, β3 y β4 han sido pesados en una balanza de platillos de acuerdo con el siguiente esquema:
+Hallar las estimaciones de cada βi y de la varianza del error.
+
+
+```{r}
+dis_mat <- 
+  matrix(c(
+    1,1,1,1,1,1,
+    1,-1,0,0,0,1,
+    1,1,0,0,1,-1,
+    1,1,1,-1,1,1,
+    9.2,8.3,5.4,-1.6,8.7,3.5), ncol = 5)
+
+y_vec <- dis_mat[,5]
+qr_x <- dis_mat[,1:4] %>% qr()
+
+
+# coeficientes con formula
+backsolve(qr_x$qr, qr.qty(qr_x, y_vec))
+
+# modelo con lm
+as.tibble(dis_mat) %>%
+  select(-V1) %>%
+  lm(V5 ~ V2+V3+V4, data = .) %>%
+  summary()
+
+  
+```
+
+
+
+#### 3. (∗) (Ejercicio 3.2 del Capítulo 3 página 54)
+
+#### 4. (∗) (Ejercicio 3.7 del Capítulo 3 página 55)
+
+#### 5. (∗) (Ejercicio 3.8 del Capítulo 3 página 56)
+
+#### 6. (∗) (Ejercicio 3.10 del Capítulo 3 página 56)

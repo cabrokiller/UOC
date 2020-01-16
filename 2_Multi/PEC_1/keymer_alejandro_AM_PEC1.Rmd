@@ -1,0 +1,658 @@
+---
+title: "PEC 1 - Estadística Multivariante"
+author: "Alejandro Keymer"
+date: "20 de Noviembre, 2019"
+output: html_document
+---
+
+
+
+```{r setup}
+# Cargo las librerías utilizadas. Entre otras utilizo la sintaxis de 'tidyverse'
+# Las otras librerías son de funciones utilizadas a lo largo de la PEC
+pacman::p_load(rcompanion, faraway, broom, tidyverse, knitr, scales,
+               FactoMineR, factoextra, GGally, MVN, heplots)
+```
+
+# Mercurio en los lagos de Florida
+
+# Ejercicio 1
+##### (a) Preparar la base de datos `mercbass` a partir del archivo MERCBASS.TXT. Habrá que tener cuidado con los nombres de las columnas. Tal vez se deba utilizar un read.delim(). También habrá que nombrar correctamente las observaciones.
+ 
+```{r .numberlines}
+# La función read_tsv de tidyverse es mas rápida y permite configurar de manera
+# adecuada el proceso de importación de los datos
+mercbass <-
+   read_tsv(
+      "MERCBASS.txt",
+      col_types =
+         cols(
+            ID = col_character(),       # el id es una etiqueta, no un numero
+            Lake = col_character(),
+            Alkalinity = col_double(),
+            pH = col_double(),
+            Calcium = col_double(),
+            Chlorophyll = col_double(),
+            `Avg Mercury` = col_double(),
+            `# samples` = col_double(),
+            Min = col_double(),
+            Max = col_double(),
+            `3yrStand` = col_double(),
+            `age data` = col_logical()
+         )
+   )
+```
+ 
+ 
+---
+ 
+##### (b) El Estado de Florida ha fijado un nivel de concentración de mercurio en alimentos comestibles de 0.5 ppm por encima del cual se consideran no saludables. ¿Qué porcentaje de lagos en este estudio tienen un nivel superior de concentración de mercurio para considerarse no saludables? ¿Podemos considerar esta estimación como un buen estimador del porcentaje de lagos de Florida que superan el nivel declarado? ¿Porqué o porqué no?
+
+```{r}
+# Creo una variable lógica para la condición de mercurio promedio > 0.5 y luego
+# una tabla de contingencia. Entiendo que 'por encima de...' no incluye el
+# valor.
+mercbass %>%
+   mutate(saludable = `Avg Mercury` <= 0.5) %>%
+   group_by(saludable) %>%
+   summarise(n = n()) %>%
+   mutate(perc = percent(n/sum(n)))
+```
+ 
+El estimador elegido es un estimador puntual, con un resultado de porcentaje o proporción. Cómo estimador puntual tiene ventajas y desventajas. La ventaja es que es muy fácil de calcular y de interpretar. El problema es que no se toma en cuenta el error, por lo que no podemos conocer cuan preciso o fiable es. Tampoco conocemos la metodología por la que se realiza el muestreo (puede haber sesgo), por lo que no funciona bien como parámetro estimador. Por otra parte, se podría hacer una extrapolación de un IC asumiendo que el error tiene una distribución normal, pero creo que no se puede llegar a esta conclusión por lo que estimar el error tampoco sería correcto. 
+
+---
+
+##### (c) Como estamos interesados en la relación entre las 4 variables químicas y la concentración de mercurio, realizar diagramas de dispersión dos a dos. ¿Qué dificultades observamos?
+ 
+```{r message=FALSE}
+# utilizo ggpairs de la librería GGally, que es más flexible y a mi gusto visualmente 
+# mas atractivo
+mercbass %>%
+   select(Alkalinity, pH, Calcium, Chlorophyll, Min, `Avg Mercury`, Max) %>%
+   ggpairs(., lower = list(continuous = wrap("points", alpha = 0.75, size = .7)))
+```
+ 
+En cuanto a las dificultades, podemos observar que la base de datos original presenta algunos visibles en los gráficos de dispersión y en las curvas de densidad. 
+En cuanto a las curvas de densidad, es bastante claro que varias variables tienen una distribución desviada a la izquierda. Esto se ve en los gráficos de dispersión porque los puntos están concentrados en la esquina inferior izquierda, lo que hace muy difícil estimar si hay una asociación o no. Por otra parte, hay variables que tienen bastante correlación entre si, lo que podría generar problemas debido a la multicolinearidad, que habría que tomar en cuenta. 
+ 
+---
+
+##### (d) Consideremos transformar las variables originales mediante alguna de las potencias de la escalera de Tukey (Tukey ladder of powers). Nos centraremos en las variables químicas y la concentración media de mercurio. La función transformTukey() del paquete rcompanion nos puede servir. Mostrar gráficamente que con las variables transformadas (si es necesario), mejora la relación lineal entre las variables químicas y la concentración de mercurio.
+ 
+```{r message=FALSE}
+# realizo la transformación con la escalera de Tukey, y vuelvo a realizar un plot de 
+# dispersión.
+
+# como la pregutna hace referencia a que hay que elgir la potencia, utilizamos
+# la funcion de transformTukey para elegir la mejor potencia
+mercbass %>%
+      select(Alkalinity, pH, Calcium, Chlorophyll, Min, `Avg Mercury`, Max) %>%
+      map_df(function(x) transformTukey(x, int = 0.25, plotit = F, quiet = T, returnLambda = T))
+```
+
+
+tabla de transformaciones de Tukey:
+
+|$\lambda$ |   -2           | -1            | -1/2                 | 0       | 1/2        | 1   |  2   |
+|----------|----------------|---------------|----------------------|---------|------------|-----|------|
+| y        |$\frac{1}{x^2}$ | $\frac{1}{x}$ | $\frac{1}{\sqrt{x}}$ | $log_x$ | $\sqrt{x}$ | $x$ | $x^2$|
+
+
+```{r message=FALSE}
+# estas lambdas nos permiten elgir las trasnformacion adecuada
+tukey_lad <- 
+   mercbass %>%
+      select(Alkalinity, pH, Calcium, Chlorophyll, Min, `Avg Mercury`, Max) %>%
+      map_df(function(x) transformTukey(x, plotit = F, quiet = T))
+
+
+# Primero creo la base con las transformaciones propuestas. Me ha costado un
+# poco comprender por que se proponían sólo dos funciones de transformación,
+# cuando la función de transformTukey utiliza una lambda diferente para cada
+# variable según se minimice el error W de la Prueba de Shapiro Wilks. Leyendo
+# el foro finalmente opte por elegir yo la transfromacion mas adecuada,
+# eligiendo una transfromacion f() para las variables quimicas y una g() para la
+# concentracion de mercurio.
+
+# en este caso con la tabla de lambdas que calculo con transformTukey, elijo:
+# f(x) = log(x)  y g(x) = sqrt(x)
+ 
+
+mercbass_tr <-
+   mercbass %>%
+   select(Alkalinity, pH, Calcium, Chlorophyll, Min, `Avg Mercury`, Max) %>%
+   map_at(vars(Alkalinity, Calcium, Chlorophyll), function(f) log(f)) %>%
+   map_at(vars(Min, `Avg Mercury`, Max), function(g) sqrt(g)) %>%
+   as_tibble()
+```
+
+
+
+```{r}
+tukey_lad %>%
+   ggpairs(., lower = list(continuous = wrap("points", alpha = 0.75, size = .85)))
+```
+ 
+ 
+Comparativamente, las curvas de dispersión mejoran mucho en la medida de que se acercan mas a una distribución normal. Por otra parte, en los gráficos de dispersión es posible observar que es mucho mas fácil ver el tipo de correlación 2 a 2 que hay entre las diferentes variables.  El problema de colinearidad es mas visible con los datos transformados. 
+
+---
+
+##### (e) Sean $X_1 = f(Alkalinity)$, $X_2 = pH$, $X3 = f(Calcium)$, $X_4 = f(Chlorophyll)$, $Y_1 = g(Min)$, $Y_2 = g(Avg.Mercury)$ y $Y_3 = g(Max)$, donde $f$ y $g$ son las transformaciones propuestas en el apartado anterior. Calcular la matriz de varianzas-covarianzas de las variables $(X_1,X_2,X_3,X_4, Y_1, Y_2, Y_3)$ con la matriz de centrado H. Comprobar que da el mismo resultado que con la función cov().
+
+```{r}
+n <- dim(mercbass_tr)[1]
+```
+
+Calculo de la COV con los datos centrados directamente (método 1) y con la matriz de centrado (método 2)
+
+```{r}
+# Método 1
+# calculamos la matriz de datos centrados con dplyr
+cent <-
+mercbass_tr %>%
+   map_df(function(x) x - mean(x)) %>%
+   as.matrix()
+
+# calculamos la matriz var-cov
+S_1 <- 
+t(cent) %*% cent * 1/(n - 1)
+S_1
+```
+
+
+```{r}
+# Método 2
+# calculamos primero la matriz de centrado
+H <- diag(n) - 1/n * matrix(data = 1, nrow = n, ncol = n)
+
+# con la matriz de centrado calculamos la matriz var-cov
+S_2 <- 
+(1/(n-1)) * t(as.matrix(mercbass_tr)) %*% H %*% as.matrix(mercbass_tr)
+S_2
+```
+
+
+```{r}
+# chequeamos si son iguales a lo obtenido con `cov`
+all.equal(cov(mercbass_tr), S_1 , S_2)
+```
+
+ + Método 1: En primer lugar calculamos la matriz centrada. Con `map` es facil calcular $(x_i-\bar{x})$ para las variables. Luego calculamos la covarianza con: $S=\frac{1}{n-1}\bar{X}'\bar{X}$
+
+ + Método 2: Calculamos la matriz de centrado con: $H = I_n - \frac{1}{n}11^\top$. Con la matriz de centrado calculamos la matriz var-cov con: $S = \frac{1}{n-1}X'HX$.
+
+En ambos casos utilizamos en el denominador $n-1$, que calcula el estimador de la covarianza de una muestra i.i.d. y que es el método que utiliza el operador `cov` en R. 
+
+
+---
+
+##### (f) Consideremos las variables $U = 0.4X_1+0.2X_2+0.2X_3+0.2X_4$ y $V = (Y_1+Y_2+Y_3)/3$. Calcular las medias y las varianzas de $U$ y $V$ en función de las medias, varianzas y covarianzas de las variables $X_i$ y $Y_j$ . También la correlación entre las variables $U$ y $V$.
+```{r}
+# EN primer lugar transformo la base a una matriz
+X <- as.matrix(mercbass_tr)
+
+
+# Calculamos el vector de medias para todas las variables
+X_bar <- map_dbl(mercbass_tr, mean)
+
+# Utilizo dos matrices de transformación para obtener las variables U y V Con
+# estas matrices de transformación es fácil poder obtener la información que se
+# solicita.
+T_u <- c(0.4, 0.2, 0.2, 0.2, 0, 0, 0)
+T_v <- c(0, 0, 0, 0, 1/3, 1/3, 1/3)
+
+# Media la variable U
+(m_u <- X_bar %*% T_u)
+
+# Varianza de la Variable U
+(s_u <- T_u %*% S_1 %*% T_u)
+
+# Media de la variable V
+(m_v <- X_bar %*% T_v)
+
+# Varianza de la variable V
+(s_v <- T_v %*% S_1 %*% T_v)
+
+# covarianza de U y V
+(s_uv <- T_u %*% S_1 %*% T_v)
+
+S_uv <- matrix(c(s_u, s_uv, s_uv, s_v), nrow = 2)
+colnames(S_uv) <- c("U", "V")
+rownames(S_uv) <- c("U", "V")
+
+# Matriz de covarianza de UV
+S_uv
+
+# Coeficiente de correlacion
+(r <- s_uv / (sqrt(s_u) * sqrt(s_v)))
+```
+
+
+
+---
+
+##### (g) Hallar las combinaciones lineales $U = a_1X_1 + a_2X_2 + a_3X_3 + a_4X_4$ y $V = b_1Y_1 + b_2Y_2 + b_3Y_3$ de forma que la correlación sea máxima. La solución pasa por hacer un Análisis de la correlación canónica2 (ACC) que se puede resolver paso a paso con R. Para ello necesitamos los valores y vectores propios de las matrices:
+
+$$
+S^{−1}_{
+XX} S_{XY} S^{−1}_{YY} S_{YX}
+$$
+$$
+S−1
+Y Y SY XS−1
+XXSXY
+$$
+
+donde S es la matriz de varianzas-covarianzas de las variables.
+El primer valor propio de ambas matrices coincide y la correlación máxima es la raíz cuadrada de ese valor. Las combinaciones lineales que buscamos son los vectores propios de cada matriz asociados al primer valor propio común. Sin embargo, como exigimos que la combinación lineal $a'x$ verifique $a'S_{XX}a = 1$ y que la combinación lineal $b'y$ verifique $b'S_{YY}b = 1$, habrá que dividir cada vector propio por la raíz cuadrada de $u'S_{XX}u$ y la raíz cuadrada de $v'S_{YY}v$ respectivamente, donde u y v son los vectores propios asociados al primer valor propio de cada una de las matrices. Dado que las variables químicas del agua de los lagos están en las mismas unidades, salvo el pH, ¿cual es la variable mejor correlacionada según el ACC con la concentración de mercurio? ¿Cual de las tres variables de concentración de mercurio presenta mayor correlación con las variables químicas según el ACC?
+
+http://pensamientoestadistico.com/analisis-correlacion-canonica/
+
+```{r warning=FALSE}
+# Primero creo las matrices de covarianza de xx yy xy y yx con la matriz de
+# covarianza de toda la base
+S <- cov(mercbass_tr)
+
+S_xx <- S[1:4, 1:4]
+S_yy <- S[5:7, 5:7]
+S_xy <- S[1:4, 5:7]
+S_yx <- S[5:7, 1:4]
+
+# Calculo de  los eigenvalues
+A_eig <- eigen(solve(S_xx) %*% S_xy %*% solve(S_yy) %*% S_yx)
+B_eig <- eigen(solve(S_yy) %*% S_yx %*% solve(S_xx) %*% S_xy)
+
+# Creo un pae de funciones para no tener que repetir para cada vector
+get_a_vec <- function(eigen, col = 1){
+   a <- eigen$vectors[,col]
+   out <- a /sqrt(abs(t(a) %*% S_xx %*% a))
+   return(out)
+}
+
+get_b_vec <- function(eigen, col = 1){
+   b <- eigen$vectors[,col]
+   out <- b /sqrt(abs(t(b) %*% S_yy %*% b))
+   return(out)
+}
+
+
+# Valores de X, con los tres primeros vectores. EL primer vector (V1) es el que
+# mas optimiza la correlación
+sapply(c(1,2,3), function(x) get_a_vec(A_eig, x)) %>% 
+   as_tibble() %>%
+   mutate(rowname = colnames(mercbass_tr)[1:4]) %>%
+   column_to_rownames()
+
+
+# Valores de Y. EL primer vector (V1) es el que mas optimiza la correlacion
+sapply(c(1,2,3), function(x) get_b_vec(B_eig, x)) %>% 
+   as_tibble() %>%
+   mutate(rowname = colnames(mercbass_tr)[5:7]) %>%
+   column_to_rownames()
+```
+
+Por lo que entiendo, la variable química que mejor correlaciona con las $Y$ es `Alkalinity`. La variable de concentración de Mercurio que mejor correlaciona es `Min`.
+
+
+
+----
+
+##### (h) Comprobar con alguna función de R que el resultado del apartado anterior es correcto. Nota: La función cc() del paquete CCA proporciona las correlaciones y los vectores canónicos correctos. La función cancor() da unos vectores canónicos que hay que multiplicar por $\sqrt{n − 1}$, donde n es el tamaño de la muestra.
+
+```{r}
+pacman::p_load(CCA)
+
+merc_cc <- cc(mercbass_tr[,1:4], mercbass_tr[,5:7])
+merc_cc$xcoef
+merc_cc$ycoef
+```
+
+Los valores corresponden! Hay una inversión el los signos, pero esto no tiene efecto en el resultado.
+
+---
+
+# Ejercicio 2
+En este ejercicio vamos a comparar conjuntamente las tres variables Y_j respecto al pH de los lagos según sean ácidos (pH < 7) o alcalinos (pH > 7). Los lagos con valor de pH neutro (= 7) no pertenecen a ninguno de los dos grupos y no deben intervenir en la comparación.
+
+##### (a) Dibujar un único boxplot múltiple con las tres variables (Y1, Y2, Y3) en la misma escala que comparen los valores en los dos grupos de lagos (ácidos y alcalinos).
+
+```{r}
+# creo nueva base, cambiando la variable pH de numérica a categórica. 
+mercbass_cat <- 
+mercbass_tr %>%
+   mutate(pH = case_when(
+      pH > 7 ~ 'alcalino',
+      pH < 7 ~ 'ácido'
+   ),
+   pH = factor(pH, levels = c("ácido", "alcalino"))) %>%
+   na.omit()                    # quita las observaciones con NA
+
+
+# CReo un boxplot con ggplot
+mercbass_cat %>%
+   select(Min, `Avg Mercury`, Max, pH) %>%
+   gather(key, value, -pH) %>%
+   mutate(key = factor(key, levels = c('Min', 'Avg Mercury', 'Max'))) %>% 
+   ggplot(aes(key, value, fill = pH)) +
+   geom_boxplot()
+``` 
+
+ 
+ 
+##### (b) Estudiar gráficamente y con algún test la normalidad univariante y multivariante (si es posible) en cada uno de los grupos. La normalidad multivariante se puede estudiar con la asimetría y la kurtosis multivariante de Mardia gracias a la función mvn del paquete MVN. La misma función permite el estudio univariante y también hace los gráficos. Acompañar el test con un gráfico qq-plot de ajuste a la distribución ji-cuadrado de las distancias de Mahalanobis (clásicas y robustas) de los datos a la media en cada grupo. Comentar el resultado en cuanto a los tests y en cuanto a la presencia de datos atípicos.
+
+```{r}
+# creamos la version long de la base para poder graficar con ggplot.
+long_dt <- 
+mercbass_cat %>%
+   select(pH, Min, `Avg Mercury`, Max) %>%
+   gather(key, value, -pH) %>%
+   mutate(key = factor(key, levels = c('Min', 'Avg Mercury', 'Max')))
+
+# Genero un plot de densidad para las diferentes variables para las tres variables Y.
+long_dt %>%
+   ggplot(aes(value, color = pH)) +
+   geom_density(alpha = .5) +
+   facet_grid( key ~., scales = "free") +
+   scale_color_brewer(type = "qual", palette = 6)
+```
+
+En primer lugar construyo una gráfica de densidad para $Y_i$ según cada `pH`. Si bien los histogramas o gráficas de densidad no son la mejor herramienta para valorar normalidad, creo que son una buena primera aproximación. En este caso podemos observar que las distribuciones de los lagos ácidos, se acercan mejor a una distribución normal. Los lagos alcalinos presentan una desviación a la izquierda, sobretodo en la variable `Min`.
+
+
+```{r}
+# Q_Q plots para valorar normalidad
+long_dt %>%
+   ggplot(aes(sample = value)) +
+   stat_qq() +
+   stat_qq_line(color = "red") +
+   facet_wrap(pH~ key, scales = "free")
+ 
+```
+
+Una mejor herramienta gráfica univariable, son los gráficos $Q-Q$ que permiten graficar las variable v/s el cuantil teórico de una distribución normal. En este caso podemos ver como hay un mejor ajuste de las variables para la categoría de los lagos `ácidos`, sobre todo para $Y_{max}$ y $Y_{Avg Mercury}$, y en menor grado para $Y_{Min}$ que tiene una desviación derecha y una "depresión" en los valores mas bajos. 
+
+En el caso de los `alcalinos` las tres distribuciones se alejan de la normal, siendo las tres picudas y desviadas a la izquierda.
+
+```{r}
+# seleccionamos las variabels y filtramos los lagos acidos
+Y_acid <-
+   mercbass_cat %>%
+   select(pH, Min, `Avg Mercury`, Max) %>%
+   filter(pH == "ácido") %>% 
+   select(-pH)
+
+# seleccionamos las variabels y filtramos los lagos alcalinos
+Y_alc <-
+   mercbass_cat %>%
+   select(pH, Min, `Avg Mercury`, Max) %>%
+   filter(pH == "alcalino") %>%
+   select(-pH)
+
+# Test de Mardia para los lagos ácidos , y su correspondiente grafica Q-Q
+mvn_acid <- MVN::mvn(Y_acid, multivariatePlot = "qq")
+
+# Test univariante de Shapiro Wilk para los lagos ácidos
+mvn_acid$univariateNormality 
+
+# Test multivariante de Mardia para los lagos ácidos
+mvn_acid$multivariateNormality 
+
+# Test de Mardia para los lagos alcalinos , y su correspondiente gráfica Q-Q
+mvn_alc <- MVN::mvn(Y_alc, multivariatePlot = "qq")
+
+# Test univariante de Shapiro Wilk para los lagos alcalinos
+mvn_alc$univariateNormality 
+
+# Test multivariante de Mardia para los lagos alcalinos
+mvn_alc$multivariateNormality
+```
+
+<br>
+En el caso de los lagos **ácidos**, el test de Shapiro Wilk para las variables individuales $Y_i$ es coherente con la $H0$ para las tres variables, $Y_{Avg Mercury}$ y $Y_{Max}$ y $Y_{Min}$, lo que apoya lo que se puede ver en las graficas de densidad del ejercicio anterior. 
+
+Por otra parte, el test de asimetria de Mardia permite rechazar la H0 de normalidad, por lo que **no** se cumple el criterio de Mardia para normalidad multivariable, que exije $H0$ para la asimetría y la kurtosis. Mirando la gráfica $Q-Q$ se puede apreciar esta asimetría. 
+
+En el caso de los lagos **alcalinos**, el test de Shapiro Wilk, solo permite rechazar la H0 de normalidad para $Y_{Min}$ pero no para las otras variables, lo que confirma la sospecha que teniamos mirando la curva de densidad y la gráfica $Q_Q$. El test de asimetría de Mardia tambien permite rechazar la H0, apoyando que la distribución multivariable no sigue a la normal. 
+
+---
+
+##### (c) Comparar las matrices de covarianzas de los grupos con el test M de Box. También podemos comparar la variabilidad con un test de Levene múltiple. ¿Ambos métodos contrastan lo mismo? En caso de duda sobre la normalidad multivariante de los datos, proponer y calcular un método multivariante para contrastar si hay diferencias de variabilidad entre los grupos.
+
+```{r}
+Y_all <- 
+   mercbass_cat %>%
+   select(Min:Max, pH)
+
+# Utilizamos la versión del test M de Box de la librería 'heplots'.
+mbox <- heplots::boxM(cbind(Min, `Avg Mercury`, Max) ~ pH, data = Y_all, cov = T)
+mbox
+```
+
+El test M de Box es un análogo de un test de likelihood ratio, y calcula la divergencia de las matrices de covarianza de las variables por grupos con la de todas las variables. Utiliza un estadístico de Chi cuadrado para valorar el grado de divergencia. 
+
+En este caso el estadístico no permite rechazar la H0 de homogeneidad de matrices de covarianza. 
+
+
+```{r}
+# Multiple Levene test
+levene <- heplots::leveneTests(mercbass_cat[5:7], mercbass_cat$pH)
+levene
+```
+
+El test de Levene puede detectar divergencias de las media en las variables. Calcula un estadístico F para valorar si las diferencias de la media son significativas entre los grupos. En este caso no se encuentran diferencias significativas en ninguna de las tres variables  
+
+```{r warning=FALSE}
+# procedimiento multivatainte PERMDISP2 Esta descrito como un análogo
+# multivariante del test de Levene calcula la distancia de la distancia promedio
+# al centroide del grupo y luego valora con un ANOVA si la diferencia es
+# significativa entre lso grupos. Posee ademas un método para TukeyHSD que
+# permite calcular el IC de las diferencias en las medias de la distancia
+
+d <- dist(Y_all[,1:3])
+
+model <- vegan::betadisper(d, Y_all$pH)
+
+plot(model)
+
+anova(model)
+
+TukeyHSD(model)
+```
+
+En este caso el estadístico F no resulta significativo por lo que no rechazamos la hipótesis H0 de que no hay diferencias en la variabilidad de los datos. 
+Ademas con el método de Tukey podemos calcular un intervalo de confianza que en este caso pasa por el 0. 
+
+
+```{r warning=FALSE}
+# Otra alternativa es utilizar el test de Van Valen, descrito en el libro de
+# Manly, que calcula diferencias de medias, del vector de distancias de
+# diferencias con la mediana de las variables estandarizadas primero
+# estandarizamos los datos
+
+merc_scale <- 
+   mercbass_cat %>%
+   arrange(pH) %>%
+   select(-pH) %>%
+   scale()
+
+
+# vectores con las medianas de las variables escaladas
+mat_med <-
+   matrix(c(
+      rep(apply(merc_scale[1:31,], 2, median), 19),
+      rep(apply(merc_scale[32:50,], 2, median), 31)),
+   ncol = 6,
+   byrow = T)
+
+# creamos un tibble con las distancias absolutas
+abs_tibble <- 
+abs(merc_scale - mat_med) %>%
+   as_tibble %>%
+   mutate(dist_2 = rowSums(abs(merc_scale - mat_med)),
+          cat = c(rep("ácido", 19), rep("alcalino", 31)))
+
+# tabla de contingencia para mirar las medias de las distancias
+# entre los dos grupos
+abs_tibble %>%
+   select(dist_2, cat) %>%
+   group_by(cat) %>%
+   summarise(media = mean(dist_2)) 
+
+# t.test para valorar si los grupos son diferentes. 
+abs_tibble %>%
+   t.test(dist_2 ~ cat, data = ., alternative = "less") 
+
+```
+
+Utilizo la metodología descrita en libreo de Manly, en la que en primer lugar se hace un calculo de la distancia absoluta de las variables estandarizadas a su mediana. Luego es posible realizar un t.test simple para valorar si hay diferencias entre la media de los vectores de distancia entre los dos grupos. En este caso realizo un t.test de una cola, ya que antes obtenemos que la distancia media a la mediana del grupo de lagos `ácido` es menor al grupo de lagos `alcalinos`. El t.test resulta con un estadístico que se aleja de manera significativa de 0, por lo que se puede rechazar la H0 de que ambas medias son iguales, y por tanto apoya la hipótesis de que la varianza multivariable de las dos categorías de lagos son diferentes. 
+
+
+---
+
+##### (d) Comparar de forma multivariante las medias de las variables (Y1, Y2, Y3) en los dos grupos de lagos según su pH. Realizar un test suponiendo normalidad multivariante y otro de permutaciones.
+
+
+```{r}
+# PAra calcular diferencias en las medias de las variables, utilizo el test T2
+# de Hotelling. La funcion 'hotelling.test' tiene asdemas la posibliadd de
+# realizar la version del test con permutaciones
+
+t2_1 <-
+   Hotelling::hotelling.test(cbind(Min, `Avg Mercury`, Max) ~ pH, data = Y_all)
+t2_2 <-
+   Hotelling::hotelling.test(
+      cbind(Min, `Avg Mercury`, Max) ~ pH,
+      data = Y_all,
+      perm = T,
+      B = 1000,
+      progBar = F
+   )
+
+t2_1
+
+# permutaciones
+t2_2 
+```
+
+El test T2 de Hotelling resulta en un estadístico con un nivel significativo con tendencia a 0, lo que apoya el rechazo de la H0 de igualdad de medias para las muestras multivariantes. Esto viene a apoyar lo que era visible en la gráfica de cajas de la sección (a) del Ejercicio 2
+
+
+---
+
+
+# Ejercicio 3
+Con la base de datos y las variables del ejercicio 1(e).
+
+##### (a) Calcular las componentes principales con alguna función específica de R a partir de la matriz de correlaciones para que las variables no tengan pesos distintos. ¿Qué relación tienen estas componentes con los vectores propios de la matriz de correlaciones R? ¿Cuantas componentes parecen necesarias para tener una buena representación de los datos?
+
+
+```{r}
+# utilizamos la función PCA de la librería FactoMineR
+pca_mod <- 
+   mercbass_tr %>%
+   PCA(graph = F, ncp = 7, scale.unit = T)
+
+eigen(cor(mercbass_tr))$vectors
+pca_mod$svd$V
+```
+
+Los vectores propios de la matriz de correlación se corresponden con la matriz `V` del procedimiento de descomposición en valores singulares del análisis de componentes principales. 
+
+---
+ 
+Aunque existe una plétora de métodos para contestar la última pregunta, los cuatro métodos más utilizados son:
+
+  1. El criterio de Kaiser: se eligen las primeras componentes cuyos valores propios son superiores a 1.
+   
+```{r}
+pca_mod$eig
+```
+   Según el método de Kaiser deberíamos elegir el componente 1 solamente. 
+   
+---
+   
+   
+   2. Varianza explicada: se eligen las primeras componentes que explican como mínimo el 70 o 80% de la varianza total.
+
+Según este criterio podríamos elegir los dos primeros componentes.
+
+---
+   
+   3. Scree plot de Cattel (1966): Éste es un método gráfico por el que se eligen las componentes hasta el codo del gráfico.
+   
+```{r}
+fviz_screeplot(pca_mod)
+```
+   
+   En este caso el codo del gráfico coincide con los dos primeros componentes. Luego la variablidad explicada por cada componente baja bastante por lo que se podrían obviar y considerar sólo los primeros dos
+   
+---
+   
+   4. El criterio de la interpretabilidad: se trata de elegir todas las componentes que mejor recojan la esencia del significado de las variables y verificar que esa interpretación tiene sentido en los términos conocidos del problema bajo investigación. Seguramente, la solución es una combinación de los cuatro criterios.
+
+```{r}
+fviz_pca_var(pca_mod, )
+```
+   
+La interpretabilidad también hace pensar que dos dimensiones son suficientes y coherentes. En resumen, creo que en este caso son necesarias dos dimensiones del PCA.
+   
+----
+   
+   
+   
+##### (b) Interpretar las dos primeras componentes mediante las variables mejor relacionadas con cada una de ellas. Los gráficos de correlaciones con las variables originales pueden ayudar. 
+```{r}
+dimdesc(pca_mod, axes = c(1,2))
+```
+ 
+Las variables que mas correlaciona con la Dimensión 1 son la `Alkalinity` y `pH` por un lado y de manera inversa, `Avg Mercury`, `Min` y `Max`. Esta dimensión diferencia claramente la acidez (y los otros químicos) a un polo y la concentración de mercurio en el otro polo inverso. Loa lagos con valores altos en esta dimensión tienden a ser mas alcalinos, a tener mas calcio y menos concentración de Mercurio. 
+En cuanto a la dimensión 2, es visible que correlaciona casi todas las variables, por lo que esta dimensión se caracteriza por la correlación de la cantidad de químicos y la alcalinidad de los lagos. Los Lagos con valores altos en esta dimensión son mas alcalinos y tienen mas concentración de Mercurio, los con valores bajos son mas ácido y con menos mercurio. 
+
+---
+
+##### (c) Los investigadores Canfield and Hoyer (1988) hallaron que el pH y la alcalinidad en los lagos de Florida generalmente crecen si se va del Noroeste al Sudeste y de las tierras altas a la costa del estado. Representar los grupos en un gráfico de dos dimensiones con la función PCA del paquete FactoMineR3. ¿Donde están situados en el gráfico los lagos del Noroeste? ¿Se ajusta este resultado con la hipótesis de los investigadores?
+ 
+```{r}
+factor_geo <- 
+   mercbass_tr %>%
+   rownames_to_column() %>%
+   mutate(geo = ifelse(rowname %in% c(9,21,23,29,34,45), "NO", "otros")) %>%
+   pull(geo) %>%
+   factor()
+
+
+fviz_pca(pca_mod, habillage = factor_geo) 
+
+```
+ 
+ 
+En este caso podemos ver los lagos del NO en rojo. Efectivamente estos lagos se encuentran mas concentrados en la zona inferior e izquierda del espacio del PCA, por lo que se podría interpretar que tienen concentraciones de mercurio alta y valores de pH - Alkalinidad bajo (valores negativos en Dim 1 y la mayoria valores negativos en Dim 2).
+
+---
+
+##### (d) Dado que las variables estudiadas en los apartados anteriores de este ejercicio están claramente en dos grupos, podemos realizar un Análisis factorial múltiple. ¿Difiere substancialmente el resultado del MFA del obtenido con las componentes principales?
+ 
+```{r}
+#par(mfrow = c(2,2))
+mfa_mod <- 
+   mercbass_tr %>%
+   MFA(
+      .,
+      group = c(4,3),
+      name.group = c('Quim y Alk', 'Mercurio'),
+      graph = T
+   )
+
+# descripción de las dimensiones
+dimdesc(mfa_mod)
+
+```
+
+
+El resultado en cuanto a las dimensiones creo que no varía mucho del PCA. La dimension 1 claramente diferencia los dos grupos. La dimension 2 por otra parte, estaría definida por los lagos en la que correlacion de los dos grupos de variables no es inversa. 
+
+Lo que si es interesante es cómo con MFA se puede ver como cada grupo "arrastra" a los lagos individuales. 
+

@@ -1,0 +1,70 @@
+CLUSTAL O(1.2.4) multiple sequence alignment
+
+
+genomicA      cagaagaattgcttgaaccagggaggtggaggttgcagtgagcagagatcacgccactgc	60
+genomicB      -----------------gctgggatg--tggggagcagtgttctgaggctgagcag-gac	40
+                                * **** *    **  ******  * ***     **     *
+
+genomicA      actcctgcttaagtgacagagtgagactccatctcaaaaaaaaaaaaaaaattcctatta	120
+genomicB      agtgaggccttgggcctggcct----------ctgaaaccattttttccacctaggcctc	90
+              * *   ** *  *     *  *          ** ***  *        *  *     * 
+
+genomicA      tgtgcttgagtaataccacccactctggcaaatcttaaaaaagctcttggccgggtgcag	180
+genomicB      tgagcctgtgtcctataacttattgcaggctgttagaagc------------aggcagac	138
+              ** ** ** **  **  **  * *   *    *   **               **   * 
+
+genomicA      tggctcatgcctgtaatccccagaagaattgcttgaaccagggaggtggaggttgcagtg	240
+genomicB      tactttctggatgctttgctgcttagaatttttttctgcca-------------------	179
+              *   *  **  **   * *     ******  **    *                     
+
+genomicA      agcagagatcacgccactgcactcctgcttaagtgacagagtgagactccatctcaaaaa	300
+genomicB      ----ga-----------tatcctaggtcatcactctATGAGTGTGGATCCAGCTTGT---	221
+                  **           *   **    * * * *    ***** *  **** **      
+
+genomicA      aaaaaaaaaaattcctattatgtgcttgagtaataccacccactctggcaaatcttaaaa	360
+genomicB      ------------------------------------CCCCAAAGCTTGCCTTGCTTTGAA	245
+                                                  * ** *  ** **    ***  **
+
+genomicA      aagctcttggccgggtgcagtggctcatgcctgtaatcccATGGGAAAGTCTCTTTCTCA	420
+genomicB      GCATCat--gggaggagctgtctctaagatctctaaagtgactttgaggccttttgctca	303
+                    *  *   ** ** **  ** *   ** ***    *     * * ** ** ****
+
+genomicA      TTTGCCTTTGCATTCAAGCAAAGAAGATGCagttccccatttctgtcgccacacctctga	480
+genomicB      ttgtcttggatattagccctt---------ggcacccttttagtcacgctaatcccccta	354
+              **  * *    ***    *            *  ***  **  *  *** *  ** *  *
+
+genomicA      gatggtgcctgtgtctgtcattgtttcttgaatcaatctagacctcagttctaaagaacc	540
+genomicB      gcaagtggttgctccacagcctgtttat-----------attcctctctc--aataatgc	401
+              *   ***  **   *      ***** *           *  ****  *   **  *  *
+
+genomicA      ctaaaaactctgtccgtgaatcttgggggaaggaggaagtcaatgtaaaatacttccata	600
+genomicB      ttttttattctctgccacatgg--ctggctacgagttttccaaacttgta----tgcttt	455
+               *    * *** * *   *       **  * ***     ***  *   *    * * * 
+
+genomicA      ttgtatttctaagatgtctatttccccttt--gtgattattttgactgcaagtgtccgtg	658
+genomicB      gtttcccttttaaatgtaagtttcagctttaagtcatttctttgcatggggagcagatga	515
+               * *   * * * ****   ****  ****  ** ***  ****  **            
+
+genomicA      aatcttgggggaaggaggaagtcaatgtaaaatacttccatattgtatttctaagatgtc	718
+genomicB      atcatatggtgagagaggaagtcacagagagagactaggatgtggtaccagactcttaag	575
+              *   *  ** **  **********  *  * * ***   ** * ***         *   
+
+genomicA      tatttcccctttgtgattattttgactgcaagATGAGTGTGGATCCAGCTTGTCCCCAAA	778
+genomicB      caatcaaatctcacgtgaactaactgagcaagaa----------gtgacttatcaccaag	625
+               * *      *   *   * *      ******               *** ** **** 
+
+genomicA      GCTTGCCTTGCTTTGAAGCATCagttccccattt-----------ctgtcgccacacctc	827
+genomicB      gggtgttaaccattcatgagggatctgcccacatgatccaatcacctcccaccaggaaat	685
+              *  **     * ** * *    *  * ****  *           **  * ***      
+
+genomicA      tgagatggtgcctgtgtctgtcattgtttcttgaatcaatctagacctcagttctaaaga	887
+genomicB      cacattggtttccaaATGGGAAAGTCTCTTTCTCATTTG---------CCTTTGCATTCA	736
+                   ****  *    *  *  * * * * *   **            *  **  *   *
+
+genomicA      accctaaaaactcagttccccatttctgtcgccacacctctgagatggtgcctgtgtctg	947
+genomicB      AGCAAAGAAGATGCtgcccacatgatccaatcacctcccaccaggaaatcacattgggaa	796
+              * *  * **  *     ** ***        *  * **    **    *  *  **    
+
+genomicA      tcattgtttcttgaatcaatctagacctcagttctaaagaaccctaaaaactc	1000
+genomicB      tcac-------------------------------------------------	800
+              ***                                                  

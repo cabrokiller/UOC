@@ -1,0 +1,708 @@
+---
+title: "Estadística Multivariante"
+author: "Alejandro Keymer"
+date: "10/18/2019"
+output: 
+  html_document: 
+    theme: readable
+    df_print: kable
+---
+
+```{r}
+# Me he acostumbrado a la gramática de tidyverse, por lo que utilizo esta biblioteca
+pacman::p_load(MASS, faraway, broom, tidyverse, pander)
+source('https://www.york.ac.uk/depts/maths/data/everitt/chiplot.r')
+```
+
+# Ejercicios
+## 1. 
+En un estudio sobre las plagas de diferentes artrópodos en las encinas de las dehesas la siguiente tabla presenta la distribución conjunta de las variables aleatorias discretas: x 1 : diferentes tipos de artrópodos, que toma seis valores posibles P 1 = Orugas, P 2 = Hemipteros, P 3 = Hormigas, P 4 = Arañas, P 5 = Coleópteros y P 6 = Otros y x 2 : tipo de dehesa, que toma los valores A = dehesa con pastos, B = dehesa con matorral y C = dehesa cultivada.
+```{r}
+(artro <-
+     tibble(
+         'names' = c('P1', 'P2', 'P3', 'P4', 'P5', 'P6'),
+         'A' = c(0.130,
+                 0.105,
+                 0.070,
+                 0.080,
+                 0.010,
+                 0.005),
+         'B' = c(0.110,
+                 0.065,
+                 0.035,
+                 0.040,
+                 0.020,
+                 0.010),
+         'C' = c(0.090,
+                 0.080,
+                 0.045,
+                 0.080,
+                 0.020,
+                 0.005)
+     ))
+```
+
+ (a) Calcular las distribuciones marginales
+
+```{r}
+(artro_marg <- 
+  artro %>%
+    rowwise() %>%
+    mutate(col_marginal = sum(A,B,C)) %>%
+    rbind(c("row_marginal", sum(.$A), sum(.$B), sum(.$C), sum(.$col_marginal))))
+
+```
+
+Para calcular las distribuciones marginales utilizo la sintáxis dplyr y hago la suma por filas y por columnas. 
+
+---
+
+ (b) Calcular la distribución condicionada de las diferentes clases de artrópodos en la dehesa cultivada
+```{r}
+artro %>%
+  mutate(`P(Y=P_i|X=C)` = C / sum(C)) %>%
+  select(names, `P(Y=P_i|X=C)`)
+```
+
+Para las distribuciones condicionadas, calculo la probabilidad condicionada con la fórmula $P(Y|X) = \frac{P(Y\cap X)}{P(X)}$, siendo $Y\cap X$ la probabilidad conjunta de la especie $i$ en la dehesa C, y $P(X)$ la probabilidad marginal de la dehesa C.
+
+---
+
+ (c) Calcular la distribución condicionada de las dehesas para las arañas.
+```{r}
+artro %>%
+  gather(parcela, value , -names) %>%
+  spread(names, value) %>% 
+  mutate(`P(X_i|Y=P4)` = P4 / sum(P4)) %>%
+  select(parcela, `P(X_i|Y=P4)`)
+```
+Utilizo la misma estrategia que en el ejemplo anterior, pero asumiendo la condición *a priori* como la probabilidad marginal de arañas.
+
+---
+
+## 2.
+(∗∗) Dada la función de densidad conjunta f (x, y) = 6x 4definida en la región R = {(x, y) / 0 < x <
+
+## 3.
+Consideremos un vector aleatorio $x = (x_1 , x_2 )$ con distribución uniforme en el rectángulo $[0, 2] × [3, 4]$.
+ (a) Especificar la función de densidad conjunta de x y calcular E(x) y var(x).
+ 
+La función de densidad conjunta es contante para la distribución uniforme y esta definida por
+
+$$
+f(x_1, x_2) = 
+\left\{
+    \begin{array}{1}
+      \frac{1}{2} & x_1,x_2 \in [0,2] \times [3,4]\\
+      0 & else
+    \end{array}
+  \right.
+$$
+
+La E(x)
+
+$$
+E(x_1,x_2) = \left[\frac{1}{2}2, \frac{1}{2}7\right] = [1,3.5]
+$$
+
+---
+
+ (b) Dada una muestra aleatoria simple x 1 , . . . , x 30 de x, calcular E(x̄) y var(x̄)
+ 
+```{r}
+## No comprendo la diferencia con la (c)
+
+```
+ 
+---
+
+ (c) Generar una muestra aleatoria de x de tamaño 30, dibujarla en un gráfico de dispersión y marcar los puntos x̄ y E(x̄). Calcular también la matriz de covarianzas muestrales S.
+```{r}
+# Generamos la uniforme bivariante con de un n = 30 con dos vectores con los
+# contreñimientos dados en la pregunta
+set.seed(41)
+sim <-
+  tibble(X1 = runif(30, 0, 2),
+         X2 = runif(30, 3, 4))
+
+# Calculamos la matriz de convarianza y el vector de medias de la muestra
+E <- c(1,3.5)
+mu <- apply(sim, 2, mean)
+cov(sim)
+
+# GRaficamos con ggplot el gráfico de dispersión y el punto de la media en 
+# rojo
+ggplot(sim, aes(X1, X2)) +
+  lims(x = c(0, 2), y = c(3, 4)) +
+  geom_point() +
+  geom_point(aes(x = mu[1], y = mu[2]),
+             color = "green",
+             shape = 3,
+             size = 2) +
+  geom_point(aes(E[1], E[2]),
+             color = "red",
+             shape = 4,
+             size = 2)
+```
+
+---
+
+ (d) Generar 40 muestras de tamaño 5, calcular sus medias muestrales y dibujarlas en un gráfico de dispersión, donde también se representa E(x̄). Repertir este proceso en gráficos distintos para 40 muestras de tamaño 20 y otras 40 de tamaño 50. ¿Qué se observa?
+
+```{r}
+do_plot <- function(samples, size) {
+  map_df(1:samples, function(x)
+    tibble(X1 = runif(size, 0, 2),
+           X2 = runif(size, 3, 4)) %>%
+      map_df(~ mean(.x))) %>%
+    # plot
+    ggplot(aes(X1, X2)) +
+    lims(x = c(0, 2), y = c(3, 4)) +
+    geom_point() +
+    geom_point(aes(E[1], E[2]),
+               color = "red",
+               shape = 4,
+               size = 2)
+}
+  
+
+# 40 muestras de n = 5
+do_plot(40,5)
+
+# 40 muestras de tamaño n = 20
+do_plot(40,20)
+
+# 40 muestras de tamaño n = 50
+do_plot(40,50)
+```
+
+Se puede observar que en la medida de que aumenta el tamaño muestral, las medias de de la muestra se aproximan a la media teórica
+
+---
+
+## 4.
+(∗) Esperanza y varianza condicionadas
+Para calcular la esperanza y la matriz de covarianzas del vector x 1 dados los valores del vector x 2 , particionamos el vector aleatorio en dos partes x = (x 1 , x 2 ) 0 con vector de medias μ = (μ 1 , μ 2 ) 0 y la matriz de covarianzas del vector x en bloques asociados a estos dos vectores, como:
+
+Entonces, la distribución condicionada x 1 |x 2 tiene esperanza y matriz de varianzas y covarianzas
+
+ (a) Obtener las distribuciones condicionadas en la normal bivariante 4 de media cero y matriz de
+covarianzas
+
+ (b) Con la matriz de covarianzas, probar que la distribución condicionada de (x 1 , x 2 ) dada x 3 , tiene como vector de medias
+(μ 1 + ρ 2 (x 3 − μ 3 ), μ 2 ) 0 y matriz de covarianzas
+
+## 5.
+ (a) Generar una muestra de tamaño n de una normal bivariante $(X_1 , X_2 ) ∼ N_2 (0, I)$
+```{r}
+set.seed(41)
+samp <- 
+  mvrnorm(10000, mu = c(0,0), Sigma = diag(2))
+
+as.data.frame(samp) %>%
+  ggplot(aes(V1,V2)) +
+  geom_density_2d()
+```
+Para generar la muestra `samp` utilizo la función `mvnorm` definiendo para el argumento `Sigma` una matriz de identidad de 2 por 2. 
+ 
+---
+
+ (b) Comprobar que las variables transformadas
+ $$
+ Y_1 = \mu_1 + \sigma_1 X1 \\
+ Y_2 = \mu_2 + \sigma_2(\rho X_1 + \sqrt{1-\rho^2} X_2)
+ $$
+ 
+ siguen una distribucion $N_2(\mu, \sum)$ con
+ 
+ $$
+ \begin{pmatrix}
+ \sigma_1^2 & \sigma_1 \sigma_2 \rho \\
+  & \sigma_2^2
+ \end{pmatrix}
+ $$
+ 
+```{r}
+# aqui quedo... 
+```
+ 
+---
+
+ (c) Con unos valores concretos $\mu = (2, 1), \sigma_1 = 1, \sigma_2 = 1.5 y \rho = 0.6$, hallar con la transformación explicada en el apartado (b) una muestra aleatoria de (Y 1 , Y 2 ) a partir de la muestra del primer apartado,
+
+```{r}
+
+rho <- 0.6
+mu <- c(2,1)
+sig <- c(1,1.5)
+
+# calculo los vectores 
+Y_1 <- mu[1] + sig[2] * samp[,1]
+Y_2 <-  mu[2] + sig[2] * (rho * samp[,1] + sqrt(1 - rho^2) * samp[,2])
+
+samp_2 <- cbind(Y_1, Y_2)
+sim_cov <- cov(samp_2)
+
+cov(samp_2)
+
+```
+
+ 
+## 6.
+Generar muestras de una distribución normal bivariante N 2 (μ, Σ) por el método siguiente: 
+ 1. Generar un valor al azar de la distribución marginal de la primera variable con media $\mu_1$ y varianza $\sigma_1^2$
+ 2. Generar un valor al azar de la distribución univariante de la segunda variable dada la primera.
+Para generar el segundo valor dado un valor x 1 , hay que tener en cuenta que:
+
+$$
+E(X_2 |x_1 ) = μ_2 + σ_{21} σ^{-1}(x_1 − μ_1) = μ_2 + σ_1^{−1} σ_2ρ(x_1 − μ_1 ) \\
+
+var(X_2 |x_1 ) = σ_{22} − σ_{21}σ_{11}^{-1}σ_{12} = σ_2^2 (1 − ρ^2 )
+$$
+ (a) Aplicar este método para generar valores al azar de un vector aleatorio con vector de medias
+$μ = (0, 5)$, desviaciones típicas $(σ_1 , σ_2) = (2,3)$ y correlación $ρ = 0.5$.
+
+```{r}
+mu_1 = 0; mu_2 = 5
+sd_1 = 2; sd_2 = 3
+rho = 0.5
+
+X_1 <- rnorm(1000, mean = mu_1, sd = sd_1)
+X_2 <- rnorm(1000, 
+             mean = mu_2 + (sd_2 ^ -1 * sd_2 * rho * (X_1 - mu_1)),
+             sd = sqrt(sd_2 * (1 - rho^2)))
+
+(mi_sample <- cbind(X_1, X_2)) %>%
+  plot()
+```
+En primer lugar genero una distribución univariante X1 con las media y sd dadas. Luego genero una segunda distribución con los constreñimientos dados en el enunciado y realizo un plot para mirar la distribución bivariante resultante. 
+
+---
+
+ (b) Utilizar los datos para estimar una densidad bivariante con la función bivden() de Everitt(2005) 6 y representarla con un gráfico en perspectiva con la función persp().
+
+```{r}
+dat <- bivden(X_1, X_2)
+
+persp(dat$seqx, dat$seqy, dat$den)
+
+dat$den %>%
+  as_tibble() %>%
+  rownames_to_column('Var1') %>%
+  gather(Var2, value, -Var1) %>%
+  mutate(Var2 = as.integer(str_sub(.$Var2, 2, 5)),
+         Var1 = as.integer(Var1)) %>%
+  # plot
+  ggplot(aes(Var1, Var2)) +
+  geom_raster(aes(fill = value)) +
+  scale_fill_viridis_c()
+
+```
+
+Con los datos de la distribución calculada, ejecuto la función `bivden` de Everitt. Con parte de estos datos se realiza el gráfico en perspectiva. Ademas adjunto una versión en 2d utilizando ggplot.
+
+---
+
+ (c) Dibujar con los mismos datos un diagrama de dispersión y añadir un gráfico de niveles con la función contour().
+
+```{r warning=FALSE}
+contour(dat$den)
+
+dat$den %>%
+  as_tibble(.name_repair = "mini") %>%
+  rownames_to_column('Var1') %>%
+  gather(Var2, value, -Var1) %>%
+  mutate(Var2 = as.integer(str_sub(.$Var2, 2, 5)),
+         Var1 = as.integer(Var1)) %>%
+  # plot
+  ggplot(aes(Var1, Var2)) +
+  geom_contour(aes(z = value, color = stat(level))) +
+  scale_color_viridis_c()
+```
+
+Adjunto ademas una versión en ggplot.
+
+---
+
+## 7. 
+Para una normal bivariante de media $(1, 2)$ y matriz de covarianzas 
+$\begin{pmatrix} 4 & 3 \\ 3 & 9 \end{pmatrix}$
+
+ (a) Representarla con un gráfico en tres dimensiones.
+ 
+```{r}
+mu = c(1,2)
+Z <- matrix(c(4,3,3,9), nrow = 2)
+
+samp <- mvrnorm(n=100, mu = mu, Sigma = Z)
+
+samp_bd <- bivden(samp[,1], samp[,2])
+
+persp(samp_bd$den)
+
+samp_bd$den %>%
+  as_tibble() %>%
+  rownames_to_column('Var1') %>%
+  gather(Var2, value, -Var1) %>%
+  mutate(Var2 = as.integer(str_sub(.$Var2, 2, 5)),
+         Var1 = as.integer(Var1)) %>%
+  # plot
+  ggplot(aes(Var1, Var2)) +
+  geom_raster(aes(fill = value)) +
+  scale_fill_viridis_c()
+```
+ 
+---
+ 
+ (b) Calcular la probabilidad del rectángulo $P (1 < X_1 ≤ 1.5, 2 < X_2 ≤ 2.75)$.
+ Se puede utilizar la función de distribución pmvnorm() del paquete mvtnorm de R.
+ 
+```{r}
+low <- c(1,2)
+hi <- c(1.5, 2.75)
+mvtnorm::pmvnorm(lower = low, upper = hi, mean = mu, sigma = Z)
+```
+ 
+---
+
+## 8. 
+(∗∗) Dibujar el gráfico de la sección 4.6 del curso online STAT 505
+https://newonlinecourses.science.psu.edu/stat505/node/36/
+
+```{r}
+
+```
+
+
+## 9. 
+(∗∗) Geometría de la Distribución Normal Multivariante
+Calcular los semiejes l j del elipsoide al 95 % para las variables numéricas de los datos crabs del
+paquete MASS para los individuos machos de la especie Blue tal como se explica en la página:
+https://newonlinecourses.science.psu.edu/stat505/node/36/
+Calcular también el volumen del mismo elipsoide.
+
+## 10. 
+En la Tabla 1 se muestran los datos de 28 alcornoques que miden los depósitos de corcho (en centigramos) en cada uno de los puntos cardinales: N , E, S, W . El vector de medias es:
+
+
+$\bar{x}= (50.536, 46.179, 49.679, 45.179)'$
+
+y la matriz de covarianzas:
+
+
+$$
+S=
+\pmatrix{
+280 & 216 & 278 & 218 \\
+    & 212 & 221 & 165 \\
+    &     & 337 & 250 \\
+    &     &     & 218 
+}
+$$
+
+Las siguientes variables compuestas explican diferentes aspectos de la variabilidad de los datos:
+
+$Contraste eje N − S con eje E − W : Y 1 = N + S − E − W$  
+$Contraste N − S: Y 2 = N − S$  
+$Contraste E − W : Y 3 = E − W$  
+
+ (a) Realizar una matriz de dispersiones de las variables originales dos a dos. Añadir las rectas de regresión y los histogramas en la diagonal.
+ 
+ (b) Calcular el vector de medias y la matriz de covarianzas de las variables compuestas.
+
+ (c) Lo mismo para las variables transformadas y normalizadas (la suma de cuadrados de los coeficientes es 1)
+
+## 11. 
+(∗∗) Probar que si la matriz de varianzas y covarianzas muestral de unos datos normales es
+
+## 12.
+Para observar gráficamente que T 2 (p, n − 1) → χ 2 p , representar en un mismo gráfico las densidades T 2 (3, 14), T 2 (3, 49) y χ 23. La aproximación se considera válida si el cociente n/p > 15.
+
+## 13. 
+Con la matriz de datos siguiente:
+
+```{r}
+mat <-
+  matrix(c(
+    6.0, 4.7, 3.3,
+    5.0, 4.2, 2.9,
+    4.5, 5.1, 3.2,
+    6.2, 4.9, 4.0,
+    5.4, 4.5, 3.7,
+    5.7, 4.6, 2.2,
+    7.2, 5.1, 4.4,
+    6.5, 6.4, 5.3,
+    2.8, 3.9, 2.5,
+    5.6, 4.6, 3.2,
+    6.1, 4.9, 4.0,
+    4.5, 4.3, 3.5), 
+    ncol = 3, byrow = T) %>%
+as_tibble()
+```
+ (a) Calcular el vector de medias, la matriz de covarianzas y la matriz de correlaciones.
+
+```{r}
+# aplicamos mean a las columnas
+(mi_mean <- apply(mat, 2, mean))
+
+# calculo la matriz de covarianza
+(mi_cov <- cov(mat))
+
+# matriz de correlación
+cor(mat)
+```
+
+---
+
+ (b) Calcular la varianza generalizada, la varianza total y el coeficiente de dependencia global $η^2 = 1 − |R|$
+
+```{r}
+# Varianza generalizada
+(R <- det(mi_cov))
+
+# Varianza total 
+sum(diag(mi_cov))
+
+# Varianza media
+sum(diag(mi_cov)) / dim(mat)[1]
+
+# coeficiente de dependencia global 
+1 - det(cor(mat))
+```
+
+---
+
+ (c) Contrastar las hipótesis univariantes $H_0^{(1)}: \mu_1 = 5$, $H_0^{(2)}: \mu_2 = 4$ y $H_0^{(3): \mu_3 = 3}$. Utilizar por ejemplo, la función t.test de R.
+```{r}
+tests <-
+  rbind(tidy(t.test(mat$V1, mu = 5)),
+        tidy(t.test(mat$V2, mu = 4)),
+        tidy(t.test(mat$V3, mu = 3)))
+
+tests %>%
+  mutate(p.adjusted = p.adjust(p.value, "fdr", dim(tests)[1]))
+```
+ Calculo utilzando la funcion `t.test` con una meda teórica y agrupo los resultados en un data set para tener una visión global. Al ser tres pruebas con la misma muerta se debe corregir por pruebas multiples. En este caso corrijo por  FDR. En el caso de la 1era y 3era columna, no se puede rechazar la hipótesis nula. En el caso de la segunda columna si es posible rechazarla, con un grado de significacion > al 95%
+ 
+---
+
+ (d) Contrastar la hipótesis $H_0 : (μ 1 , μ 2 , μ 3 )' = (5, 4, 3)$ con el estadístico T 2 de Hotelling y hallar el estadístico F correspondiente.
+ 
+```{r}
+dif <- (as.vector(mi_mean) - c(5,4,3))
+p <- dim(mat)[2]
+n <- dim(mat)[1]
+
+
+T_2 <- n * t(dif) %*% solve(cov(mat)) %*% dif
+
+F_val <- (n-p)/(p*(n-1)) * T_2
+
+p_val <- pf(F_val, p, n-p, lower.tail = F)
+
+
+c('T^2' = T_2, F = F_val, p_val = p_val)
+```
+ 
+Utilizo la fórmula $T^2 = n(\bar{X}-\mu_0)'S^{-1}(\bar{X}-\mu_0)$ y $F=\frac{n-p}{p(n-1)}T^2$ del curso STAT 505 
+
+En este caso, se puede rechazar la H0 de igualdad de medias multivariante
+
+---
+
+
+## 14.
+(∗∗)Contrastes sobre la matriz de covarianzas de una población normal
+
+## 15.
+Los vectores de medias y las matrices de covarianzas de n 1 = 24 tortugas macho y n 2 = 24 tortugas hembra, respecto a las variables X 1 = longitud, X 2 = anchura y X 3 = altura del caparazón en mm, son:
+
+```{r}
+media_tm <- c(113.38, 88.29, 40.71)
+media_th <- c(136, 102.58, 51.96)
+
+sig_tm <-
+  matrix(
+    c(132.99, 75.85, 35.82, 75.85, 47.96, 20.75, 35.82, 20.75, 10.79),
+    nrow = 3)
+sig_th <- 
+  matrix(
+    c(432.58, 259.87, 161.67, 259.87, 164.57, 98.99, 161.67, 98.99, 63.87),
+    nrow = 3
+  )
+```
+
+
+ (a) Calcular la matriz de covarianzas común S.
+```{r}
+n <- 24
+sig_hm <- 
+  (sig_tm * (n-1) + sig_th * (n-1))/ (2*n -2)
+
+sig_hm
+```
+
+Calculo la matriz conjunta con $S_{hm} = \frac{S_m(n - 1) + S_h(n - 1)}{2n-2}$
+
+---
+ 
+ (b) Descartar la independencia de las variables en los dos grupos con el test −2 log λ = −n log |R|
+que sigue asintóticamente 8 una distribución $\chi^2_{p(p−1)/2}$
+ 
+```{r}
+# ?..
+```
+ 
+ 
+---
+
+ (c) Comparar de forma univariante las medias de X 1 , X 2 y X 3 en las dos poblaciones.
+ 
+```{r}
+
+t_x1 <- (media_th[1] - media_tm[1]) / sqrt((sig_tm[1,1]^2 + sig_th[1+1]^2) / 2)
+
+p_x1 <- 2*pt(-abs(t_x1), 23)
+
+t_x2 <- (media_th[2] - media_tm[2]) / sqrt((sig_tm[2,2]^2 + sig_th[2+2]^2) / 2)
+p_x2 <- 2*pt(-abs(t_x2), 23)
+
+t_x3 <- (media_th[3] - media_tm[3]) / sqrt((sig_tm[3,3]^2 + sig_th[2+2]^2) / 2)
+p_x3 <- 2*pt(-abs(t_x3), 23)
+
+rbind(
+  X1 = c('t' = t_x1, 'p' = p_x1),
+  X2 = c('t' = t_x2, 'p' = p_x2),
+  X3 = c('t' = t_x3, 'p' = p_x3)
+)
+```
+ 
+En el caso de las diferencias univariantes de las medias, no encuentro diferencias que puedan justificar el rechazo de la H0
+
+---
+
+ (d) Comparar de forma multivariante las medias en las dos poblaciones.
+ 
+```{r}
+dif <- media_th - media_tm
+p <- 3
+
+T_2 <- n * t(dif) %*% solve(sig_hm) %*% dif
+
+F_val <- (n-p)/(p*(n-1)) * T_2
+
+p_val <- pf(F_val, p, n-p, lower.tail = F)
+
+
+c('T^2' = T_2, F = F_val, p_val = p_val)
+```
+Las diferencias en las medias de manera multiivariante son significativas. 
+ 
+----
+ 
+ (e) Comparar las matrices de covarianzas de las dos poblaciones con el test de la razón de verosimilitudes: 
+$−2 log λ = n log |S| − n_1 log |S m | − n_2 log |S h |$
+que asintóticamente sigue una distribución $\chi^2_{p(p+1)/2}$
+
+## 16. 
+La tabla 2 contiene las medidas de 5 variables biométricas sobre gorriones hembra, recogidos casi moribundos después de una tormenta.
+Los primeros 21 sobrevivieron mientras que los 28 restantes no lo consiguieron. Las variables observadas son X 1 = longitud total, X 2 = extensión del ala, X 3 =
+longitud del pico y de la cabeza, X 4 = longitud del húmero y X 5 = longitud del esternón. Suponiendo normalidad multivariante,
+ 
+ (a) Comparar las covarianzas entre el grupo de supervivientes y el de no supervivientes con el test de la razón de verosimilitudes. Calcular también el test M de Box que se explica en Cuadras(2018) 10 y que se puede aplicar con la función boxM() del paquete heplots.
+```{r}
+sparrow <- read_csv("sparrow.csv") 
+```
+
+ (b) Comparar las medias de las dos poblaciones con el estadístico T 2 de Hotelling.
+
+```{r}
+model <- manova(cbind(X1, X2, X3, X4, X5) ~ Sobrevive, data = sparrow)
+
+summary(model)
+
+
+pacman::p_load(Hotelling)
+
+mod <- hotelling.test(. ~ Sobrevive, data = sparrow)
+
+mod
+
+```
+ 
+ (c) (∗) Comparar las medias de las dos poblaciones con el estadístico Λ de Wilks.
+
+## 17. 
+Con los datos de los gorriones hembra del ejercicio anterior y teniendo en cuenta que el test M de Box es muy sensible a la no normalidad de los datos:
+ (a) Comparar la variabilidad de los dos grupos de datos (supervivientes y no supervivientes) con el test de Levene múltiple (no multivariante) que se puede aplicar con la función leveneTests() del paquete heplots.
+```{r warning=FALSE}
+heplots::leveneTests(sparrow[,2:6], sparrow$Sobrevive)
+
+```
+ utilizo la funcion sugerida. Los resultados son coherentes con la H0 de igualdad de varianzas. Quizas la variable X5, que tiene una F relativamente grande aunque no significativa al 95% se podría analizar mas detalladamente. 
+
+ (b) (∗∗) Comparar la variabilidad de los dos grupos con una generalización multivariante del test de Levene llamada test de Van Valen. El algoritmo del test es el siguiente:
+
+
+## 18. 
+Los datos de Iris de Edgar Anderson
+El data.frame iris de R contiene los famosos datos de Iris de Fisher(1936) o de Anderson(1935) con las variables longitud del sépalo, anchura del sépalo, longitud del pétalo y anchura del pétalo, medidas en centímetros sobre tres especies de flores del género Iris: Iris setosa, Iris versicolor e Iris virginica.
+ 
+ (a) Realizar un tratamiento descriptivo de los datos.
+```{r}
+iris %>%
+  split(.$Species) %>%
+  map(~ summary(.)) %>%
+  pander()
+```
+Utilizo la función summary para cada una de las especies de la base. 
+ 
+
+ (b) Dibujar un boxplot múltiple con el paquete lattice.
+ 
+```{r}
+iris %>%
+  gather(key, value, -Species) %>%
+  ggplot(aes(key, value, color = Species)) +
+  geom_boxplot()
+```
+Realizo un boxplot múltiple pero en este caso utilizo el paquete de ggplot con el que estoy mas familiarizado
+
+
+ (c) Representar las tres poblaciones conjuntamente en gráficos de dispersión para las variables numéricas dos a dos.
+ 
+```{r}
+GGally::ggscatmat(iris, color = 'Species')
+```
+ En este caso utilizo la librería GGally que permite realizar matrices de dispersión con la sintáxis de `ggplot`
+
+ (d) Comparar las matrices de covarianzas de las tres especies con el test de la razón de verosimilitudes y con el test M de Box.
+ 
+```{r}
+get_cov <- function(specie){
+  iris %>%
+    filter(Species == specie) %>%
+    select(-Species) %>%
+    cov()
+}
+  
+i_set <- get_cov("setosa")
+i_ver <- get_cov("versicolor")
+i_vir <- get_cov("virginica")
+
+model <- heplots::boxM(iris[, 1:4], iris[, "Species"])
+summary(model)
+```
+ 
+
+ (e) Realizar un MANOVA de un factor, la especie, y contrastar si las medias de las especies se pueden considerar estadísticamente distintas.
+```{r}
+model <- manova(cbind(Sepal.Length, Sepal.Width, Petal.Length, Petal.Width) ~ Species, data = iris)
+summary(model)
+```
+
+Utilizando la función `manova` se puede establecer que se puede rechazar la H0, por lo que si se puede considerar que las medias de las tres especies son diferentes
+ 
+ 
+ (f) (∗∗) Realizar una representación canónica de las tres poblaciones con regiones confidenciales para los individuos medios de cada grupo.
+Utilizar la función candisc() del paquete candisc o consultar http://erre-que-erre-paco.blogspot.com/2010/03/analisis-canonico-de-poblaciones.html

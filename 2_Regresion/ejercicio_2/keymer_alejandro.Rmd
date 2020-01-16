@@ -1,0 +1,497 @@
+---
+title: "Regresión, modelos y métodos"
+author: "Alejandro Keymer"
+date: "11/10/2019"
+output: 
+  html_document: 
+    theme: readable
+    df_print: kable
+---
+
+
+```{r}
+# Me he acostumbrado a la gramática de tidyverse, por lo que utilizo esta biblioteca
+pacman::p_load(faraway, broom, tidyverse, pander)
+```
+
+
+# Ejercicios del libro de Faraway
+## 1. (Ejercicio 1 cap. 3 pág. 48)
+For the prostate data, fit a model with lpsa as the response and the other variables as predictors:  
+
+ (a) Compute 90 and 95% CIs for the parameter associated with age. Using just these intervals, what could we have deduced about the p-value for age in the regression summary?
+```{r, results='asis'}
+model <- lm(lpsa ~ ., data = prostate)
+map(c("CI for age, at 90 %" = .90, "CI for age, at 95 %" = .95), function(i)
+  confint_tidy(model, conf.level = i)[4,]) %>%
+  pander()
+```
+
+El intervalo de confianza al 95% pasa por el 0, pero al 90% no. De esto se puede deducir que el valor de p se debería encontrar entre $(0.05 > p > 0.1)$. Lo podemos verificar:
+```{r}
+tidy(model) %>%
+  filter(term == "age")
+```
+
+
+ (b) Compute and display a 95% joint confidence region for the parameters associated with age and lbph. Plot the origin on this display. The location of the origin on the display tells us the outcome of a certain hypothesis test. State that test and its outcome.
+
+```{r}
+require(ellipse)
+
+ellipse(model, c(4,5)) %>%
+  as.tibble() %>%
+  ggplot(aes(age, lbph)) +
+  geom_polygon(alpha = .5) +
+  geom_hline(yintercept = confint(model)[5,], linetype = 2) +
+  geom_vline(xintercept = confint(model)[4,], linetype = 2) +
+  geom_point(aes(coef(model)[4], coef(model)[5])) +
+  geom_point(aes(0,0), color = "darkred", shape = 3)
+```
+
+El orígen $(0,0)$ se encuentra dentro de la región de confianza de la elipse, lo que viene a corroborar que *no* se puede rechazar la H0.
+ $H_0:\beta_{age} = \beta_{lbph} = 0$
+ 
+
+
+(c) In the text, we made a permutation test corresponding to the F-test for the significance of all the predictors. Execute the permutation test corresponding to the t-test for age in this model. (Hint: summary(g)$coef[4,3] gets you the t-statistic you need if the model is called g.)
+
+```{r}
+set.seed(41)
+
+# usando tidyverse!
+tstats <-
+  map_dbl(1:4000, function(x)
+    prostate %>%
+      lm(lpsa ~ sample(age) + ., data = .) %>%
+      tidy() %>%
+      filter(term == "sample(age)") %>%
+      pull(statistic))
+
+(perm_p <- mean(abs(tstats) > abs(tidy(model)[4, ]$statistic)))
+```
+El test de permutaciones correspondiente al t-test de `age`, da una significación de `r perm_p`. 
+
+(d) Remove all the predictors that are not significant at the 5% level. Test this model against the original model. Which model is preferred?
+```{r}
+predictors <- 
+    tidy(model) %>%
+    filter(p.value < 0.05) %>%
+    pull(term)
+
+f <- as.formula(
+  paste("lpsa", 
+        paste(predictors, collapse = " + "), 
+        sep = " ~ "))
+
+model_s <- lm(f, data = prostate)
+
+anova(model_s, model)
+```
+
+El valor de p para el estadístico F hace que no sea posible reachazar la H0 de que no hay un modelo superior al otro. Por parsimonia se debería elegir el modelo mas simple. 
+
+
+
+
+
+## 2. (Ejercicio 2 cap. 3 pág. 49)
+Thirty samples of cheddar cheese were analyzed for their content of acetic acid, hydrogen sulfide and lactic acid. Each sample was tasted and scored by a panel of judges and the average taste score produced. Use the cheddar data to answer the following:
+(a) Fit a regression model with taste as the response and the three chemical contents as predictors. Identify the predictors that are statistically significant at the 5% level.
+
+```{r}
+model_1 <- 
+    cheddar %>%
+    lm(taste ~ ., .)
+
+# filtramos los valores con p < 0.05
+model_1 %>%
+    tidy() %>%
+    filter(p.value < 0.05) 
+```
+
+(b) Acetic and H2S are measured on a log scale. Fit a linear model where all three predictors are measured on their original scale. Identify the predictors that are statistically significant at the 5% level for this model.
+```{r}
+model_2 <- 
+    cheddar %>%
+    mutate_at(vars(Acetic, H2S), exp) %>%
+    lm(taste ~ ., .)
+
+model_2 %>%
+    tidy() 
+```
+Los valores de los estimadores cambian y la asociacion con H2S deja de ser significativa
+
+
+(c) Can we use an F-test to compare these two models? Explain. Which model provides a better fit to the data? Explain your reasoning.
+```{r}
+cheddar %>%
+  gather %>%
+  ggplot(aes(value)) +
+  geom_density() +
+  facet_wrap(~ key, scales = "free")
+
+cheddar %>%
+  mutate_at(vars(Acetic, H2S), exp) %>%
+  gather %>%
+  ggplot(aes(value)) +
+  geom_density() +
+  facet_wrap(~ key, scales = "free")
+
+```
+Creo que no tiene sentido comparar los modelos, ya que no son modelos anidados. Por otra parte la disitribución de las variables logarítmicas se aproxima mejor a una distribución normal, por lo que a mi parecer podría justificar el elegir el modelo original. 
+
+
+(d) If H2S is increased 0.01 for the model used in (a), what change in the taste would be expected?
+```{r}
+(es <- filter(tidy(model_1), term == "H2S") %>% pull(estimate))
+
+```
+Un aumento en 0.01 del H2s Se asocia a un aumento teórico de `taste` de `r es`. 
+
+
+(e) What is the percentage change in H2S on the original scale corresponding to an additive increase of 0.01 on the (natural) log scale?
+
+Una adicción en la escala logaritmica se puede aproximar al cambio percentual en la escala original, por lo que se puede decir que el cambio corresponde a un 1 %.
+
+
+## 3. (Ejercicio 3 cap. 3 pág. 49)
+Using the teengamb data, fit a model with gamble as the response and the other variables as predictors.
+(a) Which variables are statistically significant at the 5% level?
+```{r}
+model_1 <- 
+teengamb %>%
+    lm(gamble ~ ., . )
+
+model_1 %>%
+    tidy() %>%
+    filter(p.value < 0.05)
+```
+
+(b) What interpretation should be given to the coefficient for sex?
+
+El sexo masculino se codifica como 0 y el femenino como 1. Se puede interpretar como que el sexo femenino se asocia a una disminución de 22.11 en el gasto de apuestas. 
+
+
+
+(c) Fit a model with just income as a predictor and use an F-test to compare it to the full model.
+```{r}
+model_2 <- 
+    teengamb %>%
+    lm(gamble ~ income, .)
+
+model_2 %>%
+    summary()
+
+anova(model_2, model_1)
+```
+La F es grande y con una p significativa, lo que permite rechazar la H0 de que los dos modelos son igual de explicativos, o de que $\beta{sex} + \beta{status} + \beta{verbal} = 0$
+
+
+## 4. (Ejercicio 4 cap. 3 pág. 49)
+Using the sat data:
+(a) Fit a model with total sat score as the response and expend, ratio and salary as predictors. Test the hypothesis that $\beta{salary} = 0$. Test the hypothesis that $\beta{salary} = \beta{ratio} = \beta{expend} = 0$. Do any of these predictors have an effect on the response?
+```{r}
+# creamos tres modelos
+# modelo con todos los parametros
+model <- 
+  sat %>%
+  lm(total ~ expend + ratio + salary, data = .)
+
+# H0: B_salary = B_ratio = B_expend = 0
+null_mod <- 
+  sat %>%
+  lm(total ~ 1, data = .)
+ 
+# H0: B_salary = 0
+model_no_sal <-
+  sat %>%
+  lm(total ~ expend + ratio, data = .)
+
+# test para corroborar las H0
+
+
+# la hipotesis nula no se rechaza
+(no_sal <- anova(model_no_sal, model))
+
+# La hipotesis nula se rechaza
+(null <- anova(null_mod, model))
+
+null$`Pr(>F)`[2]
+```
+En el caso de $H0: \beta{salary} = 0$ la prueba F tiene un valor alejado de 1, pero que no llega a ser significativo, con un p de `r no_sal$'Pr(>F)'[2]`. Por estos motivos **no se puede rechazar la H0**.
+
+En el caso de $H0:\beta{salary} = \beta{ratio} = \beta{expend} = 0$ la prueba F si que tiene un valor estadísticamente significativo con una p de `r null$'Pr(>F)'[2]`, por l oque se rechaza la H0. 
+
+
+(b) Now add takers to the model. Test the hypothesis that $\beta{takers} = 0$. Compare this model to the previous one using an F-test. Demonstrate that the F-test and t-test here are equivalent.
+```{r}
+model_tak <- 
+  sat %>%
+  lm(total ~ expend + ratio + salary + takers, data = .)
+
+# f test
+(ft <- anova(model, model_tak))
+
+# tomamos el valor de p del estadístico t del modelo lineal
+p_value_from_t <- 
+  tidy(model_tak) %>%
+  filter(term == "takers") %>%
+  pull(p.value)
+
+# Son iguales?
+all.equal(p_value_from_t, ft$`Pr(>F)`[2])
+
+```
+
+
+
+## 5. (*) (Ejercicio 5 cap. 3 pág. 50)
+Find a formula relating R2 and the F-test for the regression.
+
+Se puede deducir la relación desde la definicion del F-test y de R^2
+
+$$
+F= \frac{(TSS - RSS)/ (p-1)}{RSS/(n-p)} \\
+
+R^2 = 1 - \frac{RSS}{TSS} = \frac{TSS-RSS}{TSS} \\
+
+R^2 = \frac{F}{F + \frac{n-p}{p-1}}
+$$
+Podemos corroborar esta relación utilizando el modelo de la pregutna anterior. 
+
+```{r}
+# tomamos el valor del estadistico F calculado con `lm`
+glance(model)$statistic -> f
+
+# calculamos r con la fórmula descrita
+p <- ncol(model$model)
+n <- nrow(model$model)
+r <- f/(f+ (n-p)/(p-1))
+
+
+# Podemos corroborar si los el valor es igual al del estaistico calculado con `lm`?
+all.equal(glance(model)$r.squared, r)
+
+```
+
+
+
+## 6. (*) (Ejercicio 6 cap. 3 pág. 50)
+Thirty-nine MBA students were asked about happiness and how this related to their income and social life. The data are found in happy. Fit a regression model with happy as the response and the other four variables as predictors.
+(a) Which predictors were statistically significant at the 1% level?
+```{r}
+model_happy <- 
+  lm(happy ~ money + sex + love + work, data = happy)
+
+# filtramos p < 0.01
+model_happy %>%
+  tidy() %>%
+  filter(p.value < 0.01)
+```
+
+(b) Use the table() function to produce a numerical summary of the response. What assumption used to perform the t-tests seems questionable in light of this summary?
+```{r}
+table(happy$happy)
+```
+
+En este caso se observa una que `happy` tiene es una variable discreta, que se aleja de una aproximación normal, ya que está desviada a la derecha. 
+
+(c) Use the permutation procedure described in Section 3.3 to test the significance of the money predictor.
+```{r}
+tstats <-
+  map_dbl(1:4000, function(x)
+    happy %>%
+      lm(happy ~ sample(money) + ., data = .) %>%
+      tidy() %>%
+      filter(term == "sample(money)") %>%
+      pull(statistic))
+
+(p_per <- mean(abs(tstats) > abs(filter(tidy(model_happy), term == "money") %>% pull(statistic))))
+```
+
+La significación correspondiente a una prueba t, calculada por el método de permutaciones es de `r p_per` que se asemajea a la calculada por le método de `lm` que es de `r tidy(model_happy)[[2,5]]`
+
+(d) Plot a histgram of the permutation t-statistics. Make sure you use the the probability rather than frequency version of the histogram.
+```{r}
+(
+  q <-
+    tibble(tstats) %>%
+    ggplot(aes(x = tstats)) +
+    geom_histogram(aes(y = ..density..),
+                   color = "black",
+                   fill = "white", 
+                   binwidth = .25)
+)
+```
+
+
+
+(e) Overlay an appropriate t-density over the histogram.
+Hint: Use grid <- seq(-3, 3, length = 300) to create a grid of values, then use the dt() function to compute the t-density on this grid and the lines() function to superimpose the result.
+```{r}
+# usando ggplot se pueden hacer overlays de funciones
+q +
+  stat_function(fun = stats::dt,
+                args = list(df = model_happy$df.residual),
+                color = "red")
+```
+
+
+(f) Use the bootstrap procedure from Section 3.6 to compute 90% and 95% confidence intervals
+for $\beta{money}$. Does zero fall within these confidence intervals? Are these results consistent with
+previous tests?
+
+```{r}
+booted_coef <-
+  map_dfc(1:10000, function(x) {
+    update(
+      model_happy,
+      augment(model_happy) %>%
+        select(.fitted, .resid) %>%
+        mutate(booty = .fitted + sample(.resid, rep = T)) %>%
+        pull(booty) ~ .
+    ) %>%
+      tidy() %>%
+      pull(estimate)
+  })
+```
+
+
+
+```{r}
+prep <- 
+booted_coef %>%  
+  mutate(coef = tidy(model_happy)$term) %>%
+  gather(key, value, -coef) %>%
+  group_by(coef)
+
+# bootstrapped intervalos de confianza al 90%
+prep %>%
+  summarise(`5 %` = quantile(value, probs = 0.05),
+            `95 %` = quantile(value, 0.95))
+
+# bootstrapped intervalos de confianza al 95%
+prep %>%
+  summarise(`2.5 %` = quantile(value, probs = 0.025),
+            `97.5 %` = quantile(value, 0.975))
+
+# intervalos de confianza del modelo
+as_tibble(confint(model_happy), rownames = 'coef') %>%
+  arrange(coef)
+```
+
+En este caso el modelo de permutación no difiere mucho del calculado. El intervalo de las permutaciones al 95% pasa por el 0 al igual que el IC calculado. Debo aclarar que esto funciona aumentado el núemro de permutaciones, ya que con menos el modelo de permutaciones si que difiere mucho mas que el calculado.
+
+
+
+## 7. (*) (Ejercicio 7 cap. 3 pág. 50)
+In the punting data, we find the average distance punted and hang times of 10 punts of an American football as related to various measures of leg strength for 13 volunteers.
+ (a) Fit a regression model with Distance as the response and the right and left leg strengths and flexibilities as predictors. Which predictors are significant at the 5% level?
+
+```{r}
+model <-
+  lm(Distance ~ RStr + LStr + RFlex + LFlex, data = punting)
+
+tidy(model) %>%
+  filter(p.value < 0.05)
+```
+
+No hay ningun predictor que sea significativo al 5%
+
+
+ (b) Use an F-test to determine whether collectively these four predictors have a relationship to the response.
+```{r}
+# El modelo completo si tiene una relación con la respuesta
+glance(model)
+```
+El modelo si que tiene una relación con la respuesta `Distance`, ya que la prueba de F-test es significativa con un p de `r glance(model)$p.value`
+
+
+ (c) Relative to the model in (a), test whether the right and left leg strengths have the same effect.
+
+```{r}
+# H0: Beta_RStr = 0
+model_L <-
+   lm(Distance ~ LStr + RFlex + LFlex, data = punting)
+anova(model, model_L)
+
+# H0: Beta_LStr = 0
+model_R <- 
+  lm(Distance ~ RStr + RFlex + LFlex, data = punting)
+anova(model, model_R)
+
+# H0: Beta_LStr = Beta_Rstr
+bind_rows(.id = "model",
+  glance(model),
+  glance(model_L),
+  glance(model_R))
+
+
+
+
+```
+
+Para valorar el efecto de LStr y RStr, creo tres modelos. Un modelo con cada una de las Str y un modelo con las dos. En primer lugar intento mirar si se puede rechazar las H0 propuestas. en segundo lugar comparamos los estadisticos del modelo, para valorar si alguno se ajusta mejor.
+
+Mirando la tabla de los estadísticos, parece ser que el modelo que incluye la Rstr (modelo 3) se aujusta mejor. 
+
+
+
+ (d) Construct a 95% confidence region for ($\beta{RStr}$, $\beta{LStr}$). Explain how the test in (c) relates to this
+region.
+
+```{r}
+
+ellipse(model, c(2,3)) %>%
+  as_tibble() %>%
+  ggplot(aes(RStr, LStr)) +
+  geom_polygon(alpha = .5) +
+  geom_hline(yintercept = confint(model)[3,], linetype = 2) +
+  geom_vline(xintercept = confint(model)[2,], linetype = 2) +
+  geom_point(aes(coef(model)[2], coef(model)[3])) +
+  geom_point(aes(0,0), color = "darkred", shape = 3) +
+  coord_fixed()
+```
+
+ (e) Fit a model to test the hypothesis that it is total leg strength defined by adding the right and left leg strengths that is sufficient to predict the response in comparison to using individual left and right leg strengths.
+```{r}
+model_sep <- lm(Distance ~ LStr + RStr, data = punting)
+model_sum <- lm(Distance ~ I(LStr + RStr), data = punting)
+
+# H0: 
+anova(model_sep, model_sum)
+```
+
+La H0 no se puede rechazar, por lo que se podría justificar el utilizar un modelo mas simple que sea igual de explicativo. Al mirar los valores de los estadisticos, efectivamente el valor del estimador para LStr + RStr es signifciativo. 
+
+```{r}
+tidy(model_sum)
+```
+
+
+ (f) Relative to the model in (a), test whether the right and left leg flexibilities have the same effect.
+```{r}
+
+```
+
+ (g) Test for left-right symmetry by performing the tests in (c) and (f) simultaneously.
+```{r}
+
+```
+
+ (h) Fit a model with Hang as the response and the same four predictors. Can we make a test to compare this model to that used in (a)? Explain.
+```{r}
+
+
+```
+
+# Ejercicios del libro de Carmona
+
+# Otros ejercicios
+## 1. En los ejemplos 5.3.2 y 5.6.3 del libro de Carmona y con los datos del diseño cross-over simplificado considerar el modelo en el que el efecto de la interacción es distinto cuando primero se administra el tratamiento a y a continuación el tratamiento b, que cuando se hace al revés. Es decir, hay dos parámetros distintos ab y ba.
+Contrastar en ese modelo la hipótesis $H0 : ab = ba$. Comprobar primero que es una hipótesis contrastable.
+```{r}
+
+```
+

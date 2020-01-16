@@ -1,0 +1,666 @@
+---
+title: "Selección de Variables"
+author: "Alejandro Keymer"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(MASS, faraway, leaps, tidyverse, broom, FactoMineR, pls, factoextra)
+```
+
+# Ejercicios del libro de Faraway
+### 1. (Ejercicio 1 cap. 10 pág. 159)
+**Use the prostate data with lpsa as the response and the other variables as predictors. Implement the following variable selection methods to determine the “best” model:**
+ 
+ (a) Backward elimination
+
+Utilizo la metodoloǵia manual, como aparece en "Faraway", eliminado los predictores cuya p es mayor. HAy una reducción importante en el valor de $r²$ al eliminar la variable `lbph`. 
+El modelo queda entonces como:
+
+$ y_{lpsa} = \beta_0  + \beta_{lcavol} + \beta_{lweight} + \beta_{lbph} + \beta_{svi}$
+
+
+```{r}
+mod <- lm(lpsa ~ . , data = prostate)
+summary(mod) 
+
+mod <- update(mod , .  ~ . - gleason)
+summary(mod)
+
+mod <- update(mod , .  ~ . - lcp)
+summary(mod)
+
+mod <- update(mod , .  ~ . - pgg45)
+summary(mod)
+
+mod <- update(mod , .  ~ . - age)
+summary(mod)
+
+mod <- update(mod , .  ~ . - lbph)
+summary(mod)
+```
+
+ 
+ 
+ (b) AIC
+ 
+ En el caso del AIC utilizo la función `regsubsets` para tener las combinaciones posibles de los predictores. Con estas se puede calcular el AIC para cada una y podemos seleccionar la que presente el AIC menor. En este caso el modelo con un menor AIC es:  
+ 
+ $ y_{lpsa} = \beta_0 + \beta_{lcavol} + \beta_{lweight} + \beta_{svi}$
+ 
+```{r}
+rs <- 
+    regsubsets(lpsa ~ ., data = prostate) %>%
+    summary()
+
+n <- dim(prostate)[1]
+p <- dim(prostate)[2]
+
+
+rs$which %>%
+    as_tibble() %>%
+    mutate(rss = rs$rss,
+           aic = n * log(rss/n) + (2 * p)) %>%
+    arrange(aic)
+
+
+
+
+```
+
+
+ (c) Adjusted R2
+ 
+ Seguimos la misma metodología anterior, pero ordenamos por $r^2$. En este caso el modelo con mayor $r^2$ es:  
+ 
+  $ y_{lpsa} = \beta_0  + \beta_{lcavol} + \beta_{lweight} + \beta_{age} + \beta_{lbph} + \beta_{svi} + \beta_{lcp} + \beta_{pgg45}$
+ 
+```{r}
+rs$which %>%
+    as_tibble() %>%
+    mutate(r2 = rs$adjr2) %>%
+    arrange(-r2)
+
+```
+ 
+ 
+ (d) Mallows Cp
+ 
+ Utilizando el criterio de cp de Mallows:
+ 
+ $ y_{lpsa} = \beta_0  + \beta_{lcavol} + \beta_{lweight} + \beta_{lbph} + \beta_{svi}$
+ 
+```{r}
+rs$which %>%
+    as_tibble() %>%
+    mutate(cp = rs$cp) %>%
+    arrange(cp)
+```
+ 
+
+### 2. (∗) (Ejercicio 2 cap. 10 pág. 159)
+**Using the teengamb dataset with gamble as the response and the other variables as predictors, repeat the work of the first question.**
+
+
+### 3. (Ejercicio 3 cap. 10 pág. 159)
+**Using the divusa dataset with divorce as the response and the other variables as predictors, repeat the work of the first question.**
+
+
+En primer lugar utilizamos el criterio de eliminación.
+
+El modelo que queda por este criterio es: 
+
+
+$y_{divorce} = \beta_{year} + \beta_{femlab} + \beta_{marriage} + \beta_{birth} + \beta_{military}$
+
+```{r}
+mod <- lm(divorce ~ . , data = divusa)
+summary(mod)
+
+mod <- update(mod , .  ~ . - unemployed)
+summary(mod)
+
+mod <- update(mod , .  ~ . - military)
+summary(mod)
+```
+ 
+ 
+ (b) AIC
+ 
+ Utilizando el criterio de AIC el modelo con un menor AIC es (igual que el anterior):  
+ 
+ $y_{divorce} = \beta_{year} + \beta_{femlab} + \beta_{marriage} + \beta_{birth} + \beta_{military}$
+ 
+```{r}
+rs <- 
+    regsubsets(divorce ~ ., data = divusa) %>%
+    summary()
+
+n <- dim(divusa)[1]
+p <- dim(divusa)[2]
+
+
+rs$which %>%
+    as_tibble() %>%
+    mutate(rss = rs$rss,
+           aic = n * log(rss/n) + (2 * p)) %>%
+    arrange(aic)
+
+
+
+```
+
+
+ (c) Adjusted R2
+ 
+ $y_{divorce} = \beta_{year} + \beta_{femlab} + \beta_{marriage} + \beta_{birth} + \beta_{military}$
+ 
+```{r}
+rs$which %>%
+    as_tibble() %>%
+    mutate(r2 = rs$adjr2) %>%
+    arrange(-r2)
+
+```
+ 
+ 
+ (d) Mallows Cp:
+ 
+ $y_{divorce} = \beta_{year} + \beta_{femlab} + \beta_{marriage} + \beta_{birth} + \beta_{military}$
+ 
+```{r}
+rs$which %>%
+    as_tibble() %>%
+    mutate(cp = rs$cp) %>%
+    arrange(cp)
+```
+
+
+### 4. (Ejercicio 4 cap. 10 pág. 160)
+**Using the trees data, fit a model with log(Volume) as the response and a second-order polynomial (including the interaction term) in Girth and Height. Determine whether the model may be reasonably simplified.**
+
+
+Podemos mirar el modelo propuesto y uno simplificado dejando sólo la interacción, pero se observa una disminución importante del parámetro $r^2$.
+
+```{r}
+mod_1 <- lm(log(Volume) ~ Girth * Height, data = trees)
+summary(mod_1)
+
+n <- dim(trees)[1]
+p <- length(coef(mod_1))
+
+mod_2 <- update(mod_1, . ~ . - Girth:Height, data = trees)
+summary(mod_2)
+
+```
+
+Si miramos otros parámetros, como el AIC y el CP de Mallows, coinciden en que el modelo completa, es decir los dos parámetros mas la interacción entre ellos, siguen siendo la mejor opción de modelado. 
+
+```{r}
+rs <- 
+    regsubsets(log(Volume) ~ Girth * Height, data = trees) %>%
+    summary()
+
+
+rs$which %>%
+    as_tibble() %>%
+    mutate(cp = rs$cp,
+           r2 = rs$adjr2,
+           rss = rs$rss,
+           aic = n * log(rss/n) + (2 * p)) %>%
+    arrange(cp)
+
+```
+
+
+
+### 5. (∗) (Ejercicio 5 cap. 10 pág. 160)
+**Fit a linear model to the stackloss data with stack.loss as the predictor and the other variables as predictors. Simplify the model if possible. Check the model for outliers and influential points. Now return to the full model, determine whether there are any outliers or influential points, eliminate them and then repeat the variable selection procedures.**
+
+### 6. (Ejercicio 6 cap. 10 pág. 160)
+**Use the seatpos data with hipcenter as the response.**
+ 
+ (a) Fit a model with all eight predictors. Comment on the effect of leg length on the response.
+
+```{r}
+mod <- lm(hipcenter ~ ., data = seatpos)
+summary(mod)
+```
+
+En el modelo completo, el efecto de `leg` se relaciona de manera inversa con `hipcenter`. Por cada unidad de `leg` que aumenta, `hipcenter` disminye en `6.44` unidades. 
+
+Esta conclusión no tiene mucho sentido y de hecho si bien el modelo si es significativo, el predictor no es significativo por si sólo. 
+
+
+ (b) Compute a 95% prediction interval for the mean value of the predictors.
+
+```{r}
+confint(mod)
+```
+
+Esto confirma lo anterior, ya que el intervalo de `Leg` pasa por el 0, lo que implica que no hay un efecto claro del predictor. 
+
+
+ (c) Use AIC to select a model. Now interpret the effect of leg length and compute the prediction interval. Compare the conclusions from the two models.
+
+```{r}
+mod_aic <- step(mod, trace = 0)
+summary(mod_aic)
+
+confint(mod_aic)
+```
+
+Si bien el intervalo es algo mas pequeño, aun pasa por el 0. 
+
+
+### 7. (∗) (Ejercicio 8 cap. 10 pág. 160)
+
+**Use the odor data with odor as the response.**
+
+ (a) Fit a second-order response surcare model chic contains all quadratic and cross-product terms of the three predictors. Explicitly include all nine terms in your model statement. You will need to “protect” these terms using the I() function. Show the regression summary.
+ 
+ (b) Use the backward elimination method with a cut-off of 5% to select a smaller model.
+ 
+ (c) Use the step method to select a model using AIC. Using this selected model determine the optimal values of the predictors to minimize odor.
+
+ (d) Use the polym function to fit a second-order orthogonal polynomial regression model to the response using the three predictors. Confirm that the fit is identical to (a).
+ 
+ (e) Apply the step procedure to this last model. What terms are considered for elimination? What model was selected? Compare the outcome with (c).
+
+### 8. (Ejercicio 1 cap. 11 pág. 180)
+**Using the seatpos data, perform a PCR analysis with hipcenter as the response and HtShoes, Ht, Seated, Arm, Thigh and Leg as predictors. Select an appropriate number of components and give an interpretation to those you choose. Add Age and Weight as predictors and repeat the analysis. Use both models to predict the response for predictors taking these values:**
+
+```{r}
+rmse <- function(x,y) sqrt(mean((x-y)^2))
+
+new_dt <- 
+tribble(
+~Age, ~Weight,  ~HtShoes, ~Ht, ~Seated, ~Arm, ~Thigh, ~Leg,
+64.800, 263.700, 181.080, 178.560, 91.440, 35.640, 40.950, 38.790)
+```
+
+Primero miramos que ocurre con un PCA de los predictores. En el caso de 6 predictores,  el screeplot tiene un codo pronunciado entre las dos primeras dimensiones. En el caso de 8 predictores, hay codos en 2, 3 y 4 dimensiones. Las dos primeras tienen valores propios > 1.
+
+```{r}
+pca_1 <- 
+    seatpos %>%
+    select(HtShoes, Ht, Seated, Arm, Thigh, Leg) %>%
+    PCA(graph = F)
+
+fviz_screeplot(pca_1)
+
+
+pca_2 <- 
+    seatpos %>%
+    select(HtShoes, Ht, Seated, Arm, Thigh, Leg, Age, Weight) %>%
+    PCA(graph = F)
+
+fviz_screeplot(pca_2)
+pca_2$eig
+```
+
+
+Al realizar el modelo con la función `pcr`, se confirma lo visto en el screeplot inicial, y es que con 1 sola dimensión se explica gran parte de la variabilidad de la muestra. Hacemos la predicción con 1 sola dimensión. Esto tiene sentido en la medida de que todos los predictores del modelo parecen tener una alta correlación, ya que son todos algún tipo de medida
+
+
+```{r message=FALSE, warning=FALSE}
+mod_1 <- pcr(hipcenter ~ HtShoes + Ht + Seated + Arm + Thigh + Leg, data = seatpos, validation = "CV")
+
+plot(RMSEP(mod_1))
+
+ypred <- predict(mod_1, new_dt, ncomp=1)
+
+rmse(ypred, seatpos$hipcenter)
+```
+
+
+EN el caso del modelo con 8 predictores, según el gráfico de RMSEP, la solución mas optima es la de 3 dimensiones. Utilizamos esta información para la predicción. Esto tiene sentido ya que la edad y el peso, no deben cor relacionar tanto entre si, no con las otras variables de medida. 
+
+```{r}
+mod_2 <- pcr(hipcenter ~ HtShoes + Ht + Seated + Arm + Thigh + Leg + Age + Weight, data = seatpos, validation = "CV")
+plot(RMSEP(mod_2))
+
+ypred <- predict(mod_2, new_dt, ncomp=3)
+
+rmse(ypred, seatpos$hipcenter)
+```
+
+
+### 9. (Ejercicio 2 cap. 11 pág. 181)
+**Fit a PLS model to the seatpos data with hipcenter as the response and all other variables as predictors. Take care to select an appropriate number of components. Use the model to predict the response at the values of the predictors specified in the first question.**
+
+
+En este caso, el modelo mas optimo de PLS es el que utiliza 3 componentes. 
+
+```{r warning=FALSE}
+mod_pls <- plsr(hipcenter ~ ., data = seatpos, validation = "CV")
+
+plot(RMSEP(mod_pls))
+
+ypred <- predict(mod_pls, new_dt, ncomp = 3)
+
+rmse(ypred, seatpos$hipcenter)
+```
+
+
+
+
+
+
+### 10. (Ejercicio 3 cap. 11 pág. 181)
+**Fit a ridge regression model to the seatpos data with hipcenter as the response and all other variables as predictors. Take care to select an appropriate amount of shrinkage. Use the model to predict the response at the values of the predictors specified in the first question.**
+
+```{r}
+# creamos el modelo con una secuencia de lambda experimental
+rg_mod <- MASS::lm.ridge(hipcenter ~ ., data = seatpos, lambda = seq(0, 60, len=100))
+
+lbd <- 
+    tidy(rg_mod) %>%
+    distinct(lambda, GCV) %>%
+    rowid_to_column() %>%
+    top_n(1, -GCV)
+
+# plot de los GCV
+tidy(rg_mod) %>%
+    ggplot(aes(lambda, GCV)) +
+    geom_line() +
+    geom_vline(xintercept = lbd$lambda, color = "red")
+
+
+tidy(rg_mod) %>%
+    ggplot(aes(lambda, estimate, color = term)) +
+    geom_line() +
+    geom_vline(xintercept = lbd$lambda, color = "red") +
+    scale_colour_viridis_d()
+
+# hacemos la prediccion con el valor de lambda que minimiza GCV
+
+ypred <- cbind(1, as.matrix(select(seatpos, -hipcenter))) %*% coef(rg_mod)[lbd$rowid,]
+
+
+# rendimiento del modelo
+rmse(ypred, seatpos$hipcenter)
+
+```
+
+
+### 11. (Ejercicio 4 cap. 11 pág. 181)
+**Take the fat data, and use the percentage of body fat, siri, as the response and the other variables, except brozek and density as potential predictors. Remove every tenth observation from the data for use as a test sample. Use the remaining data as a training sample building the following models:**
+```{r}
+n <- dim(fat)[1]
+
+test_fat <- 
+    fat %>%
+    select(-brozek, -density) %>%
+    slice(seq(0,n, by = 10))
+
+train_fat <- 
+    fat %>%
+    select(-brozek, -density) %>%
+    slice(-seq(0,n, by = 10))
+
+
+```
+
+ (a) Linear regression with all predictors
+ 
+Realizamos el modelo lineal con todos los predictores
+
+```{r}
+mod_a <- lm(siri ~ ., train_fat)
+summary(mod_a)
+
+# rednimiento del modelo 
+rmse(mod_a$fitted.values, train_fat$siri)
+
+
+# rendimienot de la predicción
+ypred_lm <- predict(mod_a, test_fat)
+rmse(ypred_lm, test_fat$siri)
+```
+
+ (b) Linear regression with variables selected using AIC
+
+```{r}
+mod_b <- step(lm(siri ~ ., train_fat), trace = 0)
+summary(mod_b)
+
+# rendimiento del modelo 
+rmse(mod_b$fitted.values, train_fat$siri)
+
+# prediccion 
+ypred_aic <- predict(mod_b, test_fat)
+rmse(ypred_aic, test_fat$siri)
+```
+
+ (c) Principal component regression
+ 
+Hay varias opciones dependienta del criterio de selección de componentes. Si seguimos el criterio, utilizando el plot de RMSEP, el mejor modelo es el que utiliza 7 componentes. 
+ 
+```{r}
+mod_pca <-
+    train_fat %>%
+    select(-siri) %>%
+    PCA(graph = F)
+
+summary(mod_pca)
+fviz_screeplot(mod_pca)
+
+mod_c <- pcr(siri ~ ., data = train_fat, validation = "CV", ncomp = 8)
+summary(mod_c)
+
+RMSEP(mod_c, newdata = test_fat) %>%
+    plot()
+
+
+
+# componentes
+# rendimiento del modelo 
+rmse(mod_c$fitted.values, train_fat$siri)
+
+
+# prediccion con 7 componentes
+ypred_pcr <- predict(mod_c, test_fat, ncomp = 7)
+rmse(ypred_pcr, test_fat$siri)
+
+```
+ 
+ (d) Partial least squares
+ 
+ En este caso, como es esperable, son necesarias menos dimensiones. El mejor modelo según RMSEP es el que utiliza 4 dimensiones. 
+ 
+```{r}
+mod_d <- plsr(siri ~ ., data = train_fat, validation = "CV", ncomp = 10)
+summary(mod_d)
+
+
+plot(RMSEP(mod_d, estimate="CV"))
+
+# rendimiento del modelo 
+rmse(mod_d$fitted.values, train_fat$siri)
+
+# predicciones
+ypred_pls <- predict(mod_d, test_fat, ncomp = 4)
+rmse(ypred_pls, test_fat$siri)
+```
+ 
+ 
+ (e) Ridge regression
+ 
+ comenzamos con un modelo y una secuencia de lambda experimental para obtener el valor de lambda que minimiza el GCV
+ 
+```{r}
+mod_e <- MASS::lm.ridge(siri ~ ., data = train_fat, lambda = seq(-1, 5, len=1000))
+
+lbd <- 
+    tidy(mod_e) %>%
+    distinct(lambda, GCV) %>%
+    rowid_to_column() %>%
+    top_n(1, -GCV)
+
+# plot de los GCV
+tidy(mod_e) %>%
+    ggplot(aes(lambda, GCV)) +
+    geom_line() +
+    geom_vline(xintercept = lbd$lambda, color = "red")
+
+
+tidy(mod_e) %>%
+    ggplot(aes(lambda, estimate, color = term)) +
+    geom_line() +
+    geom_vline(xintercept = lbd$lambda, color = "red") +
+    scale_colour_viridis_d()
+
+
+
+
+# rendimiento del modelo 
+ypred <- cbind(1, as.matrix(select(train_fat, -siri))) %*% coef(mod_e)[lbd$rowid,]
+rmse(ypred, train_fat$siri)
+
+# rendimiento de la prediccion
+ypred_rg <- cbind(1, as.matrix(select(test_fat, -siri))) %*% coef(mod_e)[lbd$rowid,]
+rmse(ypred_rg, test_fat$siri)
+```
+
+
+ 
+ Use the models you find to predict the response in the test sample. Make a report on the performances of the models.
+ 
+ 
+ 
+```{r}
+tribble(
+    ~model, ~rmse,
+'LM', rmse(ypred_lm, test_fat$siri),
+'AIC', rmse(ypred_aic, test_fat$siri),
+'PCR', rmse(ypred_pcr, test_fat$siri),
+'PLS', rmse(ypred_pls, test_fat$siri),
+'Ridge', rmse(ypred_rg, test_fat$siri))
+```
+
+El mejor modelo es el que utiliza una reducción de dimensiones con PCA, utilizando 7 dimensiones. 
+
+
+### 12. (Ejercicio 5 cap. 11 pág. 181)
+**Some near infrared spectra on 60 samples of gasoline and corresponding octane numbers can be found by data(gasoline, package=“pls”). Compute the mean value for each frequency and predict the response for the best model using the five different methods from Question 4.**
+
+```{r}
+# No he podido comprender como construir el modelo en esta pregunta!
+```
+
+### 13. (∗) (Ejercicio 6 cap. 11 pág. 181)
+**The dataset kanga contains data on the skulls of historical kangaroo specimens.**
+
+```{r}
+df <-
+    kanga %>%
+    na.omit()
+```
+
+ 
+ (a) Compute a PCA on the 18 skull measurements. You will need to exclude observations with missing values. What percentage of variation is explained by the first principal component?
+
+```{r}
+# PCA si escalado
+mod_pca <- 
+    df %>%
+    select(basilar.length:ramus.height) %>%
+    PCA(graph= F, scale.unit = F)
+
+# porcetnaje de varianza explicado por el 1er comp.
+mod_pca$eig[1,2]
+```
+ 
+ 
+ (b) Provide the loadings for the first principal component. What variables are prominent?
+ 
+```{r}
+# FactoMineR PCA no devuelve loadings, hay que calucularlos con las coordenadas ppales. 
+data.frame(loadings = mod_pca$var$coord[, 1] / sqrt(mod_pca$eig[1])) %>%
+    rownames_to_column("variable") %>%
+    arrange(-abs(loadings))
+
+fviz_contrib(mod_pca, choice = "var")
+```
+
+ El plot de `contribuciones` permite ver el peso de cada variable en la dimension 1. 
+ 
+ (c) Repeat the PCA but with the variables all scaled to the same standard deviation. How do the percentage of variation explained and the first principal component differ from those found in the previous PCA?
+ 
+ 
+```{r}
+# PCA con escalado
+mod_pca_s <- 
+    df %>%
+    select(basilar.length:ramus.height) %>%
+    PCA(graph= F, scale.unit = T)
+
+# porcetnaje de varianza explicado por el 1er comp.
+mod_pca_s$eig[1,2]
+
+
+# FactoMineR PCA no devuelve loadings, hay que calucularlos con las coordenadas ppales. 
+data.frame(loadings = mod_pca_s$var$coord[, 1] / sqrt(mod_pca_s$eig[1])) %>%
+    rownames_to_column("variable") %>%
+    arrange(-abs(loadings))
+
+fviz_contrib(mod_pca_s, choice = "var")
+```
+
+Al escalar las variables, el porcentaje de varianza explicada por el 1er componente baja a 69.3%
+
+
+ (d) Give an interpretation of the second principal component.
+ 
+```{r}
+fviz_contrib(mod_pca_s, choice = "var", axes = 2)
+
+# plot de variables en la dimension 1 y 2
+fviz_pca_var(mod_pca_s)
+```
+ 
+ El componente 2 esta caracterizado por las variables `foramina.lenght`, `crest.width`, `mandible.width`, `nasal.length`, `nasal.width`, `mandible.depth` y `zygomatic.width`
+ 
+ (e) Compute the Mahalanobis distances and plot appropriately to check for outliers.
+```{r warning=FALSE}
+rob_mat <- 
+    df %>%
+    dplyr::select(basilar.length:ramus.height) %>%
+    MASS::cov.rob()
+
+
+md <- mahalanobis(select(df, basilar.length:ramus.height), center=rob_mat$center, cov=rob_mat$cov)
+
+n <- nrow(select(df, basilar.length:ramus.height)) ; p<-ncol(select(df, basilar.length:ramus.height))
+
+
+data.frame(
+    maha = sort(md),
+    x2 = qchisq(1:n/(n+1), p)
+    ) %>%
+    rownames_to_column() %>%
+    mutate(diff = abs(maha - x2)) %>%
+    ggplot(aes(x2, maha)) + 
+    geom_point() +
+    geom_abline(slope = 1, intercept= 0)+
+    geom_text(aes(label = ifelse(diff>50,rowname,NA)), nudge_y = -5)
+
+```
+
+en este caso es posible ver en el plot de distancias de mahalanobis v/s X2 que hay 4 casos que se alejan bastante de lo esperado y podrían contituir *outliers*
+
+ 
+ (f) Make a scatterplot of the first and second principal components using a different plotting symbol depending on the sex of the specimen. Do you think these two components would be effective in determining the sex of a skull?
+ 
+```{r}
+mod_pca_sex <- 
+    df %>%
+    select(sex, basilar.length:ramus.height) %>%
+    PCA(graph= F, scale.unit = T, quali.sup = 1)
+
+fviz_pca_ind(mod_pca_sex, habillage = 1)
+```
+
+Si, parece ser que la variable categórca `sex` queda realtivamente diferenciada en la dimension 1

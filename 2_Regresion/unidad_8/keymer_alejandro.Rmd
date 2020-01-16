@@ -1,0 +1,109 @@
+---
+title: "Untitled"
+author: "Alejandro Keymer"
+date: "3/1/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(faraway)
+```
+
+
+# Ejercicios del libro de Faraway
+## 1. (Ejercicio 1 cap. 14 pág. 220)
+Using the `teengamb` data, model `gamble` as the response and the other variables as predictors, investigate the possibility of interactions between sex and the other predictors. Interpret your final model.
+
+```{r}
+df <- 
+    teengamb  %>%
+    mutate(sex = factor(sex, labels = c('M', 'F')))
+    
+
+mod <- lm(gamble ~ (status + income + verbal) * sex, data = teengamb)
+
+summary(mod)
+
+
+broom::augment(mod) %>%
+    ggplot(aes(gamble, income, color = factor(sex))) +
+    geom_point()
+
+broom::augment(mod) %>%
+    ggplot(aes(.fitted, .resid, color = factor(sex))) +
+    geom_point()
+```
+
+
+
+
+
+## 2. (Ejercicio 2 cap. 14 pág. 221)
+Using the `infmort` data, find a simple model for the infant mortality in terms of the other variables. Be alert for transformations and unusual points. Interpret your model by explaining what the regression parameter estimates mean.
+```{r}
+mod <- step(lm(mortality ~ ., infmort))
+summary(mod)
+```
+
+
+
+## 3. (Ejercicio 3 cap. 14 pág. 221)
+Plot the ToothGrowth data with len as the response. Fit a linear model to the data and check for possible simplification. Display the fitted regression lines on top of the data.
+
+## 4. (*) (Ejercicio 4 cap. 14 pág. 221)
+Investigate whether the side variable can be used in a model for all the chredlin data rather than as a subsetting variable as in the analysis in the text.
+
+## 5. (*) (Ejercicio 5 cap. 14 pág. 221)
+Find a good model for the uswages data with wages as the response and all the other variables as predictors.
+
+6. (Ejercicio 6 cap. 14 pág. 221)
+The dataset clot contains the clotting times of blood varying as percentage concentration of
+prothrombin-free plasma. There are two lots of thromboplastin.
+(a) Plot the data using a different plotting symbol according to the lot.
+(b) Find the transformation of the two continuous variables to form a linear relationship.
+(c) Does the time to clot vary according to concentration differently in the two lots?
+(d) Check the assumptions of your model using regression diagnostics.
+(e) At what percentage concentration is the predicted time the same for the two lots?
+7. () (Ejercicio 7 cap. 14 pág. 221)
+The wealth in billions of dollars for 232 billionaires is given in fortune.
+(a) Plot the wealth as a function of age using a different plotting symbol for the different regions
+of the world.
+(b) Plot the wealth as a function of age with a seperate panel for each region.
+(c) Determine a transformation on the response to facilitate linear modeling.
+(d) What is the relationship of age and region to wealth?
+(e) Check the assumptions of your model using appropriate diagnostics.
+8. (Ejercicio 1 cap. 15 pág. 233)
+Using the pulp data, determine whether there are any differences between the operators. What is
+the nature of these differences?
+9. (Ejercicio 2 cap. 15 pág. 233)
+Determine whether there are differences in the weights of chickens according to their feed in the
+chickwts data. Perform all necessary model diagnostics.
+10. (Ejercicio 3 cap. 15 pág. 233)
+Using the PlantGrowth data, determine whether there are any differences between the groups.
+What is the nature of these differences? Test for a difference between the average of the two
+treatments and the control.
+11. (Ejercicio 4 cap. 15 pág. 233)
+Using the infmort data, perform a one-way ANOVA with income as the response and region as
+the predictor. Which pairs of regions are different? Now check for a good transformation on the
+response and repeat the comparison.
+12. () (Ejercicio 5 cap. 15 pág. 233)
+The anaesthetic data provides the time to restart breathing unassisted in recovering from general
+anaesthetic for four treatment groups.
+(a) Produce a boxplot depicting the data. Comment on any features of interest.
+(b) Make an appropriate stripchart of the data.
+(c) Produce versions of the previous two plots using the ggplot2 package. Show how you can
+overlay these two plots.
+(d) Fit a one-factor model for the recovery times and test for a difference between the two groups.
+(e) Try the Box-Cox transformation method. Explain what went wrong.
+(f) Try a square root transformation on the response. Are the diagnostics satisfactory? Is there
+a significant difference among the treatment groups?
+13. () (Ejercicio 6 cap. 15 pág. 233)
+Data on the butterfat content of milk from Canadian cows of five different breeds can be found in
+the butterfat dataset. Consider only mature cows.
+(a) Plot the data and interpret what you see.
+(b) Test for a difference between the breeds.
+(c) Check the diagnostics for your model.
+(d) Produce a plot to check for differences in butterfat between breeds. Which pairwise differences
+are not statistically signifcant?
+Página 2 de 2

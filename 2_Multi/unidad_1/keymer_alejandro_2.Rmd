@@ -1,0 +1,302 @@
+---
+title: "Análisis Multivariante - Ejercicios 1.2"
+author: "Alejandro Keymer"
+output: 
+  html_document: 
+    highlight: textmate
+    theme: readable
+---
+
+# 1.  Matrices
+#### 1. Las siguientes cuestiones se refieren a propiedades elementales del álgebra matricial que debesconocer. Indicar si son CIERTAS o FALSAS las siguientes propiedades
+
+```{r}
+A <- matrix(c(1,2,1,5,4,4,2,0,2), nrow = 3)
+B <- matrix(c(1,3,0,1,0,1,1,1,5), nrow = 3)
+D <- matrix(c(1,2,3,5,4,3), nrow = 2)
+
+# a) VERDADERO
+all.equal(t(A+B), t(A) + t(B))
+
+# b) FALSO
+all.equal(A%*%B, B%*%A)
+
+# c) VERDADERO
+all.equal(det(A%*%B), det(A)*det(B))
+
+# d) VERDADERO
+all.equal(det(A%*%B), det(B%*%A))
+
+# e) VERDADERO
+all.equal(sum(diag(A + B)), sum(diag(A)) + sum(diag(B)))
+
+# f) VERDADERO
+all.equal(sum(diag(A%*%B)),sum(diag(B%*%A)))
+
+# g) VERDADERO
+dim(D %*% t(D))
+
+# h) FALSO
+all.equal(t(A%*%B), t(A)%*%t(B))
+
+# i) VERDADERO
+all.equal(solve(t(A)), t(solve(A)))
+
+# j)
+# ?
+```
+
+
+#### 2.(∗)Comprobar las siguientes propiedades:
+
+
+#### 3. Dadas las matrices:
+$$A = \begin{pmatrix}
+2 & 0 & 1 \\
+3 & 0 & 0 \\
+5 & 1 & 1\\
+\end{pmatrix}
+B =  \begin{pmatrix}
+1 & 0 & 1 \\
+1 & 2 & 1 \\
+1 & 1 & 0\\
+\end{pmatrix}
+$$
+
+Calcular:A + B; A − B; AB; BA; A.
+Hacerlo manualmente y con un programa como R.
+
+```{r}
+A <- matrix(c(2,3,5,0,0,1,1,0,1), ncol=3)
+B <- matrix(c(1,1,1,0,2,1,1,1,0), ncol=3)
+
+# a) A + B
+A + B
+
+# b) A - B
+A - B
+
+# c) AB
+A %*% B
+
+# d) BA
+B %*% A
+
+# e) A'
+t(A)
+
+```
+
+
+#### 4. Demostrar que A²− A − 2I = 0, siendo:
+$$ A =  \begin{pmatrix}
+0 & 1 & 1 \\
+1 & 0 & 1 \\
+1 & 1 & 0\\
+\end{pmatrix}
+$$
+```{r}
+I <- diag(1,3)
+A <- matrix(c(0,1,1,1,0,1,1,1,0), ncol = 3)
+
+A%*%A - A - 2*I
+
+```
+
+
+
+
+
+
+#### 5. Calcular la matriz inversa de:
+$$ A = 
+ \begin{pmatrix}
+1 & -1& 0 \\
+0 & 1 & 0 \\
+2 & 0 & 1\\
+\end{pmatrix}
+$$
+puede utilizar la función solve() de R
+
+```{r}
+A <- matrix(c(1,0,2,-1,1,0,0,0,1), ncol = 3)
+solve(A)
+```
+
+
+#### 6. Resolver, en forma matricial, el sistema:
+$$ 
+\begin{cases}
+    x + y +z = 6 \\ 
+   x + 2y+ 5z= 12 \\
+   x+ 4y+ 25z= 362 \\
+  \end{cases}
+$$
+
+```{r}
+A <- matrix(c(
+        1,1,1,
+        1,2,5,
+        1,4,25
+         ), ncol = 3, byrow = T)
+B <- c(6,12,25)
+
+solve(A,B)
+```
+
+
+
+# Diagonalización y valores singulares
+#### 1.(∗)Sean...
+a) Probar queues un vector propio deA. ¿Cual es su valor propio correspondiente?
+b) Comprobar queλu, conλun escalar no nulo, también es vector propio deA.
+c) Probar queves un vector propio deA. ¿Cual es su valor propio correspondiente?
+d) ¿u+ves un vector propio deA?
+
+
+#### 2. Para las siguientes matrices determinar:
+a) el polinomio característico,
+b) los valores propios,
+c) vectores propios para cada valor propio,
+d) (∗) la multiplicidad de cada valor propio y el número de vectores propios independientes asociados a cada valor propio.
+
+Se puede utilizar la función eigen() de R.
+
+```{r}
+A <- matrix(c(0,0,1,0,1,0,1,0,0), ncol = 3)
+B <- matrix(c(1,0,0,1,2,3,0,0,3), ncol = 3)
+D <- matrix(c(0,0,4,0,2,0,1,0,0), ncol = 3)
+E <- matrix(c(0,2,0,2,0,0,0,0,3), ncol = 3)
+
+```
+a)
+$$
+\begin{pmatrix}
+0-\lambda & 0 & 1 \\
+0 & 1-\lambda & 0 \\
+1 & 0 & 0-\lambda
+\end{pmatrix} = - \lambda³ + \lambda² + \lambda
+$$
+$$
+\begin{pmatrix}
+1-\lambda & 1 & 0 \\
+0 & 2-\lambda & 0 \\
+0 & 0 & 3-\lambda 
+\end{pmatrix} =  \lambda²- 3\lambda + 2
+$$
+
+$$
+\begin{pmatrix}
+0-\lambda & 0 & 1 \\
+0 & 2-\lambda & 0 \\
+4 & 0 & 0-\lambda 
+\end{pmatrix} = - \lambda³ + 2\lambda² + 4\lambda -8
+$$
+
+$$
+\begin{pmatrix}
+0-\lambda & 2 & 0 \\
+2 & 0-\lambda & 0 \\
+0 & 0 & 3-\lambda 
+\end{pmatrix} = -\lambda³ + 3\lambda² + 4\lambda - 12
+$$
+
+```{r}
+# b) 
+eigen(A)$values
+eigen(B)$values
+eigen(D)$values
+eigen(E)$values
+
+# c)
+eigen(A)$vector
+eigen(B)$vector
+eigen(D)$vector
+eigen(E)$vector
+
+
+```
+
+
+#### 3. Si $ S = {(0,1,0),(1,0,1),(−1,0,1)} $ es el conjunto de vectores propios, para los valores propios $1,1,−1$, hallar la matriz A correspondiente.
+
+```{r}
+V <- cbind(c(0,1,0), c(1,0,1), c(-1,0,1))
+L <- diag(c(1,1,-1))
+A <- V %*% L %*% solve(V)
+A
+# checkeamos pero no coincide?!?!
+eigen(A)
+```
+
+
+#### 4.(∗)Comprobar las siguientes propiedades con algún ejemplo:
+
+#### 5. Mediante la diagonalización de la matriz
+$$ A = 
+ \begin{pmatrix}
+1 & 2  \\
+3 & 2  \\
+
+\end{pmatrix}
+
+$$
+Calcular $A^7$
+ 
+ 
+```{r}
+
+```
+
+#### 6. Dada la matriz de covarianzas
+Hallar una matrizΣ−1/2tal queΣ−1/2Σ−1/2=Σ−1.
+
+#### 7. Hallar la descomposición en valores singulares de la matriz
+$$
+A=
+\begin{pmatrix}
+2&4\\
+1&3\\
+0&0\\
+0&0\\
+\end{pmatrix}
+$$
+```{r}
+A <- matrix(c(2,1,0,0,4,3,0,0), ncol = 2)
+
+svd(A)
+```
+
+#### 8.Calcular el rango de la matriz
+```{r}
+A <- matrix(c(2,3,-1,3,0,
+              1,2,1,-2,1,
+              3,5,0,1,1,
+              2,1,-7,17,-4), ncol = 4)
+
+matrix.rank <- function(A, eps=sqrt(.Machine$double.eps)){
+  sv. <- abs(svd(A)$d)
+  sum((sv./max(sv.))>eps)
+  }
+
+
+sv. <- abs(svd(A)$d)
+
+# una definición de rango es que corresponde a los valores singulares diferentes a 0.
+# calcula el numero de valores singulares != 0 o en este caso, 
+# el menor flotante posible para la maquina
+
+
+
+matrix.rank(A)
+```
+
+
+#### 9. (∗) Probar que para la matriz dos inversas generalizadas son
+
+#### 10. (∗) Hallar una inversa generalizada de la matriz mediante la inversa del menor de rango máximo.
+
+#### 11. (∗) Determinar la inversa de Moore-Penrose de la matriz
+Utilizar la funciónginv()del paqueteMASSdeR
+
+a

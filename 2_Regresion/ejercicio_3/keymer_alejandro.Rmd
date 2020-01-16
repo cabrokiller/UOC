@@ -1,0 +1,513 @@
+---
+title: "Regresión, modelos y métodos"
+author: "Alejandro Keymer"
+date: "11/10/2019"
+output: 
+  html_document: 
+    theme: readable
+    df_print: kable
+---
+
+
+```{r}
+# Me he acostumbrado a la gramática de tidyverse, por lo que utilizo esta biblioteca
+pacman::p_load(faraway, broom, tidyverse, pander)
+```
+
+
+# Ejercicios del libro de Carmona
+
+## Ejercicio 6.8 
+
+ (a) Hallar la recta de regresión simple de la variable respuesta *raiz cuadrada* de la velocidad sobre la variable regresora densidad con los datos de la tabla 1.1 del capitulo 1.
+ 
+```{r message=FALSE}
+tabla_1 <- 
+   read_csv("tabla1.csv") %>%
+   mutate(sqrt_vel = sqrt(Velocidad))
+
+model_1 <- 
+tabla_1 %>%
+   lm(sqrt_vel ~ Densidad, data = .)
+
+qplot(tabla_1$sqrt_vel, tabla_1$Densidad) +
+   geom_smooth(method = "lm")
+```
+ 
+ La formula de la recta de regresión simple es:
+ 
+ $y = `r model_1$coefficients[1]`_0 + `r model_1$coefficients[2]`_1x_1$
+ 
+--- 
+
+ (b) Comprobar las propiedades del ejercicio 6.4 sobre las predicciones $yi=\hatβ_0+\hatβ_1x_i$ y los residuos $e_i=y_i−\hat{y_i}$ para estos datos.
+
+   (i) La suma de los residuos es cero: $∑ei= 0$.
+   
+```{r}
+# usamos el comando sum en los residuos
+sum(model_1$residuals)
+```
+   La suma se aproxima bastante a 0
+
+---
+   
+   (ii) $\sum y_i=\sum \hat{y_i}$ 
+   
+```{r}
+# chequeamos si la suma de los fitted values, o yhat es igual a los de y
+identical(
+   sum(model_1$fitted.values),
+   sum(tabla_1$sqrt_vel))
+```
+   
+   (iii) La suma de los residuos ponderada por los valores de la variable regresora es cero: $\sum x_i e_i= 0$
+   
+---
+   
+```{r}
+sum(model_1$residuals * tabla_1$Densidad)
+
+```
+   La suma se aproxima a 0
+   
+---
+   
+   (iv) La suma de los residuos ponderada por las predicciones de los valores observados es cero:$∑\hat{y_i}e_i= 0$.
+   
+```{r}
+sum(model_1$residuals * model_1$fitted.values)
+```
+   La suma se aproxima a 0
+
+---
+   Calcular la estimación de $σ2$, y a partir de ella, las estimaciones de las desviaciones estándar de los estimadores de los parámetros$β_0$ y $β_1$.
+   
+```{r}
+n <- dim(tabla_1)[1]
+
+# calculo de sigma
+sig <-  sum(resid(model_1)^2) / (length(resid(model_1)) - 2)
+
+# Calculo manual con sigma^2
+(se_B_1 <-
+sqrt(sig/sum((tabla_1$Densidad - mean(tabla_1$Densidad))^2 )))
+
+
+# chequeamos con el valor calculado por el modelo
+tidy(model_1)$std.error[2]
+
+```
+   
+   Estimo el SE de $\beta_1$ con: 
+   $\hat{se}(\beta_1)=\sqrt{\frac{\sigma^2}{\sum{(x_i-\bar{x})^2}}}$
+
+----
+   
+   Escribir los intervalos de confianza para los parámetros con un nivel de confianza del 95 %.
+   
+```{r}
+confint(model_1)
+```
+
+---
+
+   Construir la tabla para la significación de la regresión y realizar dicho contraste.
+   
+```{r}
+anova(model_1)
+```
+   
+---
+
+
+   Hallar el intervalo de la predicción de la respuesta media cuando la densidad es de 50 vehículos por km. Nivel de confianza: 90 %.
+ 
+```{r}
+new <- tibble(Densidad = 50)
+predict(model_1, newdata = new, interval = "confidence", level = 0.9) %>%
+   as_tibble()
+
+```
+ La función `predict` permite hacer predicciones con un modelo determinado. En este caso hacemos la predicción de la variable utilizando como datos novedosos el valor de Densidad = 50. Podemos pedir que devuelva el intervalo de confianza con el nivel que queramos. 
+ 
+ 
+## 2. (∗) Ejercicio 6.9 
+ (a) Comparar las rectas de regresión de hombres y mujeres con los logaritmos de los datos del ejercicio 1.4
+ 
+## 3. Ejercicio 6.10
+ (a) Se admite que una persona es proporcionada si su altura en cm es igual a su peso en kg más 100.En términos estadísticos si la recta de regresión de Y(altura) sobre X (peso) es 
+ $$Y = 100 + X$$
+ 
+ Contrastar, con un nivel de significación $α = 0.05$, si se puede considerar válida esta hipótesis a partir de los siguientes datos que corresponden a una muestra de mujeres jóvenes:
+ 
+```{r}
+tabla_2 <-
+   tibble(
+      peso = c(55, 52, 65, 54, 46, 60, 54, 52, 56, 65, 52, 53, 60),
+      altura = c(164, 164, 173, 163, 157, 168, 171, 158, 169, 172, 168, 160, 172)
+   )
+
+n <- dim(tabla_2)[1]
+
+# modelo A, df = 1
+y_hat_A <- 100 + 1 * tabla_2$peso 
+resid_A <- tabla_2$altura - y_hat_A
+
+# squared sums
+(SSTO <- sum((tabla_2$altura - mean(tabla_2$altura))^2))
+(SSE_A <- sum(resid_A^2))
+
+F_stat <- (SSTO - SSE_A) / (SSE_A / n-2)
+pf(F_stat, n-1, n-1)
+
+```
+ En este ejercicio intento hacer un contraste entre dos hipótesis. Por una parte;
+ 
+ $H_0: \beta_1 = 0$
+ 
+ $H_1: \beta_0 = 100, \beta_1 = 1$
+ 
+ Posteriormente calculo la suma de cuadrados del error de el modelo, y la suma de cuadrados del modelo nulo. Ya es posible ver que la suma de cuadrados del modelo, `SSE_A` es mucho mayor al error del modelo nulo, por lo que el modelo propuesto no parece ser mas explicativo que utilizar la media. Al hacer el estadístico F, resulta en un número muy lejano a 0 que resulta significativo. 
+ 
+ 
+ 
+## 4. Ejercicio 6.11 
+ El período de oscilación de un péndulo es $2π\sqrt{\frac{l}{g}}$, donde $l$ es la longitud y $g$ es la constante de gravitación. En un experimento observamos
+ $t_{ij}(j= 1,...,ni)$ períodos correspondientes a $l_i(i=1,...,k)$ longitudes.
+ 
+ (a) Proponer un modelo, con las hipótesis que se necesiten, para estimar la constante $\frac{2\pi}{\sqrt{g}}$ por el método de los mínimos cuadrados.
+ 
+En este ejercicio lo unico que se me ocurre es hacer un modelo con el predictor modificado con su raiz. 
+
+$y_i = \beta_0 + \beta_1 \sqrt{x}$
+
+De esta manera se puede estimar $\beta_1$ con:
+
+$\beta_1 = \frac{\sum(x_1-\bar{x})(y_i-\hat{y})}{\sum(x_i-\bar{x})^2} = \frac{2\pi}{\sqrt{g}}$
+
+---
+ 
+ (b) En un experimento se observan los siguientes datos:  Contrastar la hipótesis $H0: \frac{2π}{\sqrt{g}}= 2$
+```{r}
+tabla_3 <- 
+   tribble(
+      ~longitud, ~periodo,
+      18.3, 8.58, 18.3, 7.9, 18.3, 8.2, 18.3, 7.8, 20, 8.4, 20, 9.2,
+      21.5, 9.7, 21.5, 8.95, 21.5, 9.2, 15, 7.5, 15, 8
+      ) %>%
+      mutate(sq_long = sqrt(longitud))
+
+# modelo 
+y_hat <- 2 * sqrt(tabla_3$periodo)
+resid <- tabla_3$sq_long - y_hat
+ 
+
+
+# squared sums
+(SSTO <- sum((tabla_3$sq_long - mean(tabla_3$sq_long))^2))
+(SSE <- sum(resid^2))
+
+(F_stat <- (SSTO - SSE) / (SSE) / 10)
+
+```
+...????? 
+ 
+ 
+## 5. Ejercicio 8.4 
+ (a) Se dispone de los siguientes datos sobre diez empresas fabricantes de productos de limpieza 
+
+```{r}
+tabla_4 <- 
+   tribble(
+      ~Empresa, ~V, ~IP, ~PU,
+      1, 60, 100, 1.8,
+      2, 48, 110, 2.4, 
+      3, 42, 130, 3.6,
+      4, 36, 100, 0.6,
+      5, 78,  80, 1.8,
+      6, 36,  80, 0.6,
+      7, 72,  90, 3.6,
+      8, 42, 120, 1.2,
+      9, 54, 120, 2.4,
+      10,90,  90,  4.2
+      )
+
+```
+ 
+ En el cuadro anterior, V son las ventas anuales, expresadas en millones de euros,IP es un índice de precios relativos (Precios de la empresa/Precios de la competencia) y PU son los gastos anuales realizados en publicidad y campañas de promoción y difusión, expresados también en millones de euros. Tomando como base la anterior información:
+ (1) Estimar el vector de coeficientes $β= (β0,β1,β2)$ del modelo $V_i=β_0+β_1IP_i+β_2PU_i+\epsilon_i$
+ 
+```{r}
+model_1 <- 
+   lm(V ~ IP + PU, data = tabla_4)
+
+coefficients(model_1)
+```
+ El vector de coeficientes se puede estimar directamente del modelo. 
+ 
+---
+ 
+ (2) Estimar la matriz de varianzas-covarianzas del vector $\hatβ$.
+
+```{r}
+vcov(model_1)
+```
+La función `vconv` permite obtener la matriz var-cov del modelo. 
+
+---
+
+
+ (3) Calcular el coeficiente de determinación
+ 
+```{r}
+# manual
+augment(model_1) %>%
+   summarise(SSR = sum((.fitted - mean(V)) ^ 2),
+             SSE = sum((V - .fitted) ^ 2),
+             SSTO = sum((V - mean(V)) ^ 2)) %>%
+   mutate(R_2 = SSR / SSTO)
+
+# desde el modelo
+glance(model_1)$r.squared
+
+
+```
+ 
+El $R^2$ se puede calcular de manera manual y se puede obtener del modelo. 
+ 
+## 6. (∗) Ejercicio 8.5 
+Dado el modelo
+
+obtener:
+(a) La estimación MC de β0,β1,β2 utilizando los valores originales.
+(b) La estimación MC de β0,β1,β2 utilizando los datos expresados en desviaciones respecto a la media.
+(c) La estimación insesgada deσ2.
+(d) El coeficiente de determinación.
+(e) El coeficiente de determinación corregido.
+(f) El contraste de la hipótesis nulaH0:β0=β1=β2= 0.
+(g) El contraste de la hipótesis nulaH0:β1=β2= 0utilizando datos originales.
+(h) El contraste de la hipótesis nulaH0:β1=β2= 0utilizando datos en desviaciones respecto ala media.
+(i) La representación gráfica de una región de confianza del 95 % paraβ1yβ2.
+(j) El contraste individual de los parámetrosβ0,β1yβ2.
+(k) El contraste de la hipótesis nulaH0:β1= 10β2.
+(l) El contraste de la hipótesis nulaH0: 2β0+ 2β1+ 7β2= 50.
+(m) El contraste de la hipótesis nula conjuntaH0:β1= 10β2,2β0+ 2β1+ 7β2= 50
+
+
+# Ejercicios del libro de Faraway
+## 1. Ejercicio 1 cap. 4 
+For the prostate data, fit a model with `lpsa` as the response and the other variables as predictors:
+
+```{r}
+model_prost_full <- lm(lpsa ~ ., data = prostate)
+tidy(model_1)
+```
+
+ (a) Suppose a new patient with the following values arrives: Predict the lpsa for this patient along with an appropriate 95% CI.
+```{r}
+pac_new <- 
+   tribble(
+   ~lcavol,  ~lweight, ~age, ~lbph, ~svi, ~lcp, ~gleason, ~pgg45,
+   1.44692, 3.62301, 65.00000, 0.30010, 0.00000, -0.79851, 7.00000, 15.00000)
+
+predict.lm(model_prost_full, newdata = pac_new, interval = "prediction") %>%
+   as_tibble() %>%
+   mutate(dif = abs(lwr-upr))
+```
+  
+  Para este ejercicio creamos un nuevo caso `pac_new` con los datos. Luego utilizamos la función `predict.lm` para predecir el valor según el modelo creado. En este caso se pide una predicción puntual, por lo que utilizamos el intervalo de cofianza para la predicción.
+  
+----
+  
+ (b) Repeat the last question for a patient with the same values except that he is age 20. Explain why the CI is wider.
+
+```{r}
+pac_new_20 <- pac_new
+pac_new_20$age <- 20
+
+predict.lm(model_prost_full, newdata = pac_new_20, interval = "prediction")%>%
+   as_tibble() %>%
+   mutate(dif = abs(lwr-upr))
+```
+
+Volvemos a utilizar la misma estrategia. En este caso el intervalo de confianza es mas amplio y esto tiene relación con que la edad se aleja bastante de la media (media de edad = `mean(augment(model_1)$age)`) y del valor utilizado por el modelo según los otros datos. 
+
+
+---
+
+ (c) For the model of the previous question, remove all the predictors that are not significant atthe 5% level. Now recompute the predictions of the previous question. Are the CIs wider or narrower? Which predictions would you prefer? Explain.
+```{r}
+preds <- 
+tidy(model_prost_full) %>%
+   filter(p.value < 0.05) %>%
+   pull(term)
+   
+   
+f <- as.formula(
+  paste("lpsa", 
+        paste(preds, collapse = " + "), 
+        sep = " ~ "))
+
+model_prost_red <- lm(f, data = prostate)
+
+predict.lm(model_prost_red, newdata = pac_new, interval = "prediction")%>%
+   as_tibble() %>%
+   mutate(dif = abs(lwr-upr))
+```
+
+En este caso la predicción nos devuelve un intervalo de confianza mas estrecho. Esto tiene relación a que si tenemos menos predictores, tenemos menos "ruido" que se aleje de la formula lineal y por ende, disminuye el MSE y el intervalo se hace mas estrecho.
+
+```{r}
+anova(model_prost_full, model_prost_red)
+```
+
+ Según la prueba F no se rechazararía la H0. en este sentido podríamos elegir el modelo más simple por parsimonia, y porque es mas el hecho de tener un intervalo mas estrecho habla de una mayor tamaño del efecto.
+ 
+
+## 2. Ejercicio 2 cap. 4 pág. 5
+Using the teengamb data, fit a model with gamble as the response and the other variables as predictors.
+```{r}
+model_gam_full <- 
+ lm(gamble ~ ., data = teengamb)
+```
+
+ (a) Predict the amount that a male with average (given these data) status, income and verbal score would gamble along with an appropriate 95% CI.
+
+```{r}
+# se pide el promedio general o el del sexo masculino??
+avg_male <- 
+   map_df(teengamb, mean) 
+
+avg_male$sex <- 0
+
+as_tibble(predict(model_gam_full, newdata = avg_male, interval = "prediction")) %>%
+   mutate(dif = abs(lwr-upr))
+```
+
+Calculamos los datos para un caso *promedio* de sexo *masculino*. con estos datos calculamos la predicción del modelo creado en (a). En este caso entiendo que se pregunta por una predicción puntual tambien, lo que implica construir el intervalo de confianza para una predicción. 
+
+---
+
+ (b) Repeat the prediction for a male with maximal values (for this data) of status, income andverbal score. Which CI is wider and why is this result expected?
+ 
+```{r}
+max_male <- 
+   map_df(teengamb, max)
+   
+max_male$sex <- 0
+
+as_tibble(predict(model_gam_full, newdata = max_male, interval = "prediction")) %>%
+   mutate(dif = abs(lwr-upr))
+
+```
+
+Calculamos los datos para un caso de sexo *masculino* con los datos en el máximo. En este caso el intervalo de confianza es más ancho y esto tiene relación con que los datos se alejan bastante de la media. Esto produce que auemente el error de la predicción y se ensanche el intervalo. 
+
+---
+
+ (c) Fit a model with sqrt(gamble) as the response but with the same predictors. Now predict the response and give a 95% prediction interval for the individual in (a). Take care to give your answer in the original units of the response.
+ 
+```{r}
+model_gam_sqrt <- 
+   lm(sqrt(gamble) ~ ., data = teengamb)
+
+as_tibble(predict(model_gam_sqrt, newdata = avg_male, interval = "prediction")) %>%
+   mutate(dif = abs(lwr-upr),
+          fit_n = fit^2,
+          lwr_n = lwr^2,
+          upr_n = upr^2)
+```
+ 
+ En este caso el intervalo de confianza es mas estrecho que en el modelo original. El modelo se ajusta mejor a los datos.
+ 
+---
+ 
+ (d) Repeat the prediction for the model in (c) for a female with status = 20, income = 1, verbal= 10. Comment on the credibility of the result.
+```{r}
+fem <- tibble(status = 20, income = 1, verbal = 10, sex = 1)
+
+as_tibble(predict(model_gam_sqrt, newdata = fem, interval = "confidence")) %>%
+   mutate(dif = abs(lwr-upr), 
+          fit_n = fit^2)
+```
+Aqui el modelo extrapola a predicciones que no tienen sentido. Esto tiene relación con que los datos predictores se alejan bastante de los utilizados por el modelo y es probable que el modelo pierda capacidad predictiva en estos extremos. No tiene sentido una prediccion de un valor negativo. 
+
+
+## Ejercicio 3
+The snail dataset contains percentage water content of the tissues of snails grown under three different levels of relative humidity and two different temperatures.
+
+ (a) Use the command xtabs(water ~ temp + humid, snail)/4 to produce a table of mean water content for each combination of temperature and humidity.  Can you use this table to predict the water content for a temperature of 25◦C and a humidity of 60%? Explain.
+```{r}
+(xt <- xtabs(water ~ temp + humid, snail)/4)
+
+mean(xt[1:2,1:2])
+```
+
+De la tabla de contingencia se puede definir que el contenido de agua se debe ubicar entre 69.5 y 81.5. Si asumimos que la humedad 60 esta en la mitad de 45 y 75 y la temperatura de 25 queda en la mitad de 20 y 30, se puede inferir que el contenido de agua es `r mean(xt[1:2,1:2])`
+
+---
+ 
+ (b) Fit a regression model with the water content as the response and the temperature and humidity as predictors. Use this model to predict the water content for a temperature of 25◦ C and a humidity of 60%?
+ 
+```{r}
+mod_snail <- 
+   lm(water ~ temp + humid, data = snail)
+
+new_dt <- 
+   tibble(
+      temp = 25,
+      humid = 60
+   )
+
+predict(mod_snail, newdata = new_dt, interval = "prediction") %>%
+   as_tibble() %>%
+   mutate(dif = abs(upr-lwr))
+```
+
+---
+
+ (c) Use this model to predict water content for a temperature of 30◦C and a humidity of 75%? Compare your prediction to the prediction from  (a). Discuss the relative merits of these two predictions.
+
+```{r}
+new_dt_2 <- 
+   tibble(
+      temp = 30, 
+      humid = 75
+   )
+
+predict(mod_snail, newdata = new_dt_2, interval = "prediction") %>%
+   as_tibble() %>%
+   mutate(dif = abs(upr-lwr))
+```
+
+La predicción del modelo lineal difiere de la de la tabla. El cálculo con la tabla sólo toma en cuenta la información puntual, es decir el punto en el que las variables `humid` y `temp` son 75% y 30º sin valorar la probable relación de las variables entre sí. El modelo lineal en cambio, asume que las variables tienen una relación lineal y es esta relación la que se intenta modelar. Por otra parte, el modelo lineal permite además establecer una medida de confianza de la predicción, ya que toma en cuenta la presencia de un error de estimación y según el grado de error permite asumir mayor o menor confianza del estimador. 
+
+---
+
+ (d) The intercept in your model is 52.6%. Give two values of the predictors for which this represents the predicted response. Is your answer unique? Do you think this represents a reasonable prediction?
+ 
+```{r}
+predict(mod_snail, newdata = tibble(temp=0,humid=0), interval = "prediction")
+```
+ 
+ Para un % de agua igual al intercepto, por definición los predictores son 0. Esto no tiene mucho sentido y probablemente corresponde a una extrapolación del modelo a valores extremos donde no se conserva la relación lineal.
+ 
+ 
+---
+
+ (e) For a temperature of 25ºC, what value of humidity would give a predicted response of 80% water content.
+ 
+ Para esto hay que volver a revisar el sistema de ecuaciones del modelo.
+ 
+ $80 = \beta_0 + 25\beta_1 + k\beta_2$
+ 
+ Si despejamos para $k$:
+ 
+```{r}
+(k <- 
+(coef(mod_snail)[1]*1 + coef(mod_snail)[2]*25 - 80) / - coef(mod_snail)[3])
+
+```
+
+ 

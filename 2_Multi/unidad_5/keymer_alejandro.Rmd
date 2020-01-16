@@ -1,0 +1,369 @@
+---
+title: "Análisis de proximidades"
+author: "Alejandro Keymer"
+date: "25/11/2019"
+output: 
+  html_document: 
+    df_print: kable
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse, ade4, cluster, HSAUR, broom, knitr, kableExtra)
+```
+
+
+## Pregunta 1
+**La matriz adjunta indica las similitudes [^1] entre siete animales según un experto:**
+
+
+```{r}
+mat <- 
+matrix(c(
+0, 7, 5, 9, 5, 7, 9,
+7, 0, 4, 6, 4, 6, 7,
+5, 4, 0, 3, 4, 5, 6,
+9, 6, 3, 0, 3, 2, 2,
+5, 4, 4, 3, 0, 5, 4,
+7, 6, 5, 2, 5, 0, 4,
+9, 7, 6, 2, 4, 4, 0), nrow = 7, byrow = T)
+
+colnames(mat) <- c('A', 'B', 'C', 'D', 'E', 'F', 'G')
+rownames(mat) <- c('A', 'B', 'C', 'D', 'E', 'F', 'G')
+
+mat
+```
+
+### a)
+**Construir la matriz $B = \frac{−1}{2} HD^{(2)}H$, donde $D(2)$ es la matriz de distancias al cuadrado y $H$ es la matriz de centrado, y calcular sus valores propios. Observar si la matriz de distancias es euclídea [^2].**
+
+```{r warning=FALSE}
+n <- 7
+H <- diag(n) - 1/n * matrix(data = 1, nrow = n, ncol = n)
+D_2 <- mat^2
+
+B <- -1/2 * H  %*% mat^2 %*% H
+
+# eigenvaues de la matriz B
+eigen(B)$values
+
+# son igaules a los caluculados por la funcion cmdscale
+cmdscale(as.dist(mat), k = n-1, eig = T)$eig
+
+# es la distancia euclidiana?
+is.euclid(as.dist(mat))
+```
+Los valores propios de la matriz $B$ son equivalentes los devueltos por la función `cmdscale`. Los valores 6 y 7 son negativos por lo que se considera que la matriz de distancias no es euclidiana. Esto último se confirma con la función `is.euclid()`. 
+
+### b)
+**Obtener la representación con las dos primeras coordenadas principales e indicar el grado de bondad de esta representación. Se puede hacer a partir de la descomposición de la matriz B o con la función `cmdscale(dist, eig=T)`**
+
+```{r}
+cmdscale(as.dist(mat), k = 2) %>%
+    as_tibble(rownames = "id") %>%
+    ggplot(aes(V1, V2, label = id)) +
+    geom_point() +
+    geom_text(nudge_y = .2)
+
+# degrees of bonad 
+```
+
+
+## Pregunta 2. (\*)  
+**Poner un ejemplo para comprobar que el escalado multidimensional clásico aplicado a las distancias euclídeas calculadas sobre una matriz de datos multivariantes $X$ es equivalente a la solución que se obtiene por el análisis de componentes principales de la matriz de covarianzas de $X$.**
+
+## Pregunta 3. (\*)  
+**Frecuentemente en las aplicaciones nos encontramos con una variable categórica nominal con $k$ estados excluyentes medida sobre una muestra de $n = n1 + ··· + ng$ individuos provenientes de $g$ poblaciones. En estas condiciones, el vector de frecuencias de la $i$-ésima población $ni = (ni1, ... , nik)$ tiene una distribución conjunta multinomial con parámetros $(ni, pi)$, donde $ni = ni1 + ··· + nik$ y $pi = (pi1, ... , pik)$ son las probabilidades de un individuo de la población $i$ tales que $\sum_{j=1}^{k} pij = 1$. En genética, una medida de disimilaridad, entre otras muchas en estas circunstancias, es la distancia de Bhattacharyya cuya expresión es:**
+
+$d^2_ij = \arccos{(\sum_{l=1}^k \sqrt{p_{il}p_{jl}})}$
+
+**Si definimos el coeficiente de Bhattacharyya entre dos poblaciones como:**
+$\cos \varphi = \sum_{l=1}^k \sqrt{p_{il}p_{jl}}$
+
+
+
+**Tabla 1: Proporciones génicas entre 10 poblaciones.**
+
+```{r}
+tribble(
+    ~'Población', ~'grupo A', ~ 'grupo B', ~ 'grupo AB', ~ 'grupo 0', 
+    'francesa',  0.21, 0.06, 0.06, 0.67,
+    'checa',     0.25, 0.04, 0.14, 0.57,
+    'germánica', 0.22, 0.06, 0.08, 0.64,
+    'vasca',     0.19, 0.04, 0.02, 0.75,
+    'china',     0.18, 0.00, 0.15, 0.67,
+    'ainu',      0.23, 0.00, 0.28, 0.49,
+    'esquimal',  0.30, 0.00, 0.06, 0.64,
+    'negra USA', 0.10, 0.06, 0.13, 0.71,
+    'española',  0.27, 0.04, 0.06, 0.63,
+    'egipcia',   0.21, 0.05, 0.20, 0.54) %>%
+    rowid_to_column('id')
+```
+
+
+**esta distancia está relacionada en genética con las distancias de Cavalli-Sforza **
+
+$d_{C-Sf} = \sqrt{2(1 − \cos{\varphi})}$
+
+**y la distancia de Nei [^3]**
+
+$ d_{Nei} = −ln \cos{\varphi}$
+
+**La tabla 1 contiene las proporciones génicas observadas de los grupos sanguíneos correspondientes a 10 poblaciones distintas y excluyentes.**
+
+### a)
+**Obtener las distancias de Bhattacharyya según la fórmula 1.**
+
+
+### b)
+**Representar estas poblaciones con las dos primeras coordenadas principales. ¿Se observa algún tipo de agrupación?**
+
+### c)
+**¿Es ésta una distancia euclídea? ¿Cuál es la dimensión de la representación euclídea? Determinar el porcentaje de variabilidad explicado por las dos primeras coordenadas principales. **
+
+
+## Pregunta 4.
+**Si las variables observadas sobre un conjunto de individuos son del tipo binario, es necesario disponer de una matriz de distancias basadas en los coeficientes de similaridad que se obtienen de las tablas del tipo.**
+
+|   | 1 | 0 |
+|---|---|---|
+| 1 | a | b |
+| 0 | c | d |
+
+
+**donde $a$ es el número de variables con respuesta 1 en ambos individuos, $d$ es el número de variables con respuesta 0 en ambos individuos, etc. Entre los muchos coeficientes de similaridad destacan dos:**
+
+**Sokal y Michener:** $s_{ij} = \frac{a + d}{p}$ **Jaccard:** $s_{ij} = \frac{a}{p − d}$
+
+**donde $p = a + b + c + d$ es el número de variables binarias observadas.**
+
+**El coeficiente de Sokal y Michener [^4] se utiliza con variables binarias simétricas, es decir, aquellas en las que los valores 1 y 0 son intercambiables. Uno no es más importante que el otro, como el sexo. El coeficiente de Jaccard, en cambio, se utiliza con variables binarias asimétricas, es decir, aquellas en las que la presencia de la característica (el 1) es importante.**
+
+
+
+**Aplicando uno de estos coeficientes a un conjunto de individuos se obtiene una matriz de similaridades $(s_{ij})$ que se puede transformar en una distancia**
+
+$d^2_{ij} = s_{ii} + s_{jj} − 2s_{ij} = 2(1 − s_{ij})$
+
+**Dada la siguiente matriz de datos**
+
+```{r}
+mat <- 
+matrix(
+    c(1, 1, 0, 0, 1, 1,
+      1, 1, 1, 0, 0, 1,
+      1, 0, 0, 1, 0, 1,
+      0, 0, 0, 0, 1, 0),
+    nrow = 4,
+    byrow = T
+)
+rownames(mat) <- c('A', 'B', 'C', 'D')
+mat
+```
+
+**con las observaciones de 6 variables binarias sobre 4 individuos,**
+
+### a)
+**Calcular los coeficientes de Sokal y Michener para cada par de individuos y obtener la matriz de distancias asociada.**
+
+```{r}
+sok = function (x, y) {
+    a <- sum(x==1 & y==1)
+    b <- sum(x==1 & y==0)
+    c <- sum(x==0 & y==1)
+    d <- sum(x==0 & y==0)
+    return ((a+d)/(a+b+c+d))
+}
+
+
+# Crear df con las combinaciones de los nombres de fila y calcular el indice de 'Sokal Michener' para cada combianción y
+# la distancia segun la formula del apartado.
+(sok <- 
+    expand.grid(rownames(mat), rownames(mat)) %>%
+    rowwise() %>%
+    mutate(sim = sok(mat[Var1,], mat[Var2,]),
+           d_2 = 2 * (1 - sim)))
+
+(distance <-
+    sok %>%
+    select(Var1, Var2, d_2) %>%
+    spread(Var1, d_2) %>%
+    column_to_rownames('Var2'))
+
+```
+
+
+### b)
+**Lo mismo que en el apartado anterior pero con el coeficiente de Jaccard.**
+
+```{r}
+
+jacc = function (x, y) {
+    a <- sum(x==1 & y==1)
+    b <- sum(x==1 & y==0)
+    c <- sum(x==0 & y==1)
+    d <- sum(x==0 & y==0)
+    return (a / (a+b+c))
+}
+
+(jacc <- 
+    expand.grid(rownames(mat), rownames(mat)) %>%
+    rowwise() %>%
+    mutate(sim = jacc(mat[Var1,], mat[Var2,])))
+
+(distance <-
+    jacc %>%
+    mutate(d_2 = 2 * (1 - sim)) %>%
+    select(Var1, Var2, d_2) %>%
+    spread(Var1, d_2) %>%
+    column_to_rownames('Var2'))
+
+```
+
+
+
+## Pregunta 5.
+**En muchos análisis multivariantes se dispone de un conjunto de variables mixto, es decir, unas variables son del tipo cuantitativo y otras cualitativo (nominales, ordinales o incluso binarias). En estos casos es necesario disponer de una distancia como la de Gower que tiene en cuenta el tipo de variable. El cuadrado de la distancia de Gower entre dos filas de datos se define como**
+
+**$d^2_{ij} = 1 − s_{ij}$, donde $s_{ij}$ es el coeficiente de similaridad**
+
+$s_{ij} = \frac{\sum^{p1}_{h=1}(1 − |x_{ih} − x_{jh}| /G_h) + a + \alpha}{p_1 + (p_2 − d) + p_3}$
+
+**$p1$ es el número de variables cuantitativas, $p2$ es el número de variables binarias, $p3$ el número de variables cualitativas (no binarias), a el número de coincidencias (1, 1) en las variables binarias, $d$ el número de coincidencias (0, 0) en las variables binarias, $\alpha$ el número de coincidencias en las variables cualitativas (no binarias) y $G_h$ es el rango (o recorrido) de la $h$-ésima variable cuantitativa.**
+
+### a)
+**Calcular la distancia de Gower entre los datos de 18 tipos de flores de la base de datos flower del paquete cluster de R. Probar la función `daisy()`[^5] del paquete cluster.**
+
+
+
+```{r}
+mat <- daisy(flower, metric = "gower")
+mat
+
+```
+
+
+### b)
+**Realizar un escalado multidimensional con esta distancia y representar las flores en un gráfico de dispersión de dos dimensiones.**
+
+```{r message=FALSE, warning=FALSE}
+cmdscale(mat) %>%
+    as_tibble(.name_repair = "universal") %>%
+    rowid_to_column() %>%
+    ggplot(aes(...1, ...2, label = rowid)) +
+    geom_point() +
+    geom_text(nudge_y = .03)
+```
+
+
+## Pregunta 6.
+**Consideremos los datos sobre cráneos de varones egipcios de cinco épocas históricas que se pueden bajar[^6] desde la página del libro de Everitt (2005). Los podremos cargar directamente en R con la siguientes instrucciones:**
+
+**Donde el path debe ser la dirección a la carpeta donde hemos dejado el archivo una vez descomprimido. Así tendremos la base de datos skulls con cinco variables. La primera variable es el factor EPOCH y las otras cuatro son las medidas biométricas estudiadas del cráneo.**
+
+
+### a)
+**En primer lugar podemos realizar un MANOVA para contrastar la diferencia de medias entre los niveles del factor o poblaciones. No entraremos aquí en la comprobación de las hipótesis de normalidad y de igualdad de las matrices de covarianzas.**
+
+```{r}
+sk <- HSAUR::skulls
+
+model <-
+    manova(cbind(mb, bh, bl, nh) ~ epoch, sk)
+
+tidy(model)
+```
+
+El modelo de MANOVA permite rechazar la H0 de igualdad de medias entre los diferentes grupos.
+
+
+
+
+### b) (\*)
+**Comprobaremos que el test anterior rechaza la igualdad de medias y, por lo tanto, justifica un análisis canónico de poblaciones. Utilizar la función `candisc()` del paquete `candisc` o consultar** http://erre-que-erre-paco.blogspot.com/2010/03/analisis-canonico-de-poblaciones.html
+
+```{r}
+candisc::candisc(model)
+```
+
+
+### c)
+**Calcular las distancias de Mahalanobis entre cada pareja de épocas. Para ello, considerar la matriz de covarianzas común**
+
+$\hat{S} = \frac{29\hat{S_1} + 29\hat{S_2} + 29\hat{S_3} + 29\hat{S_4} + 29\hat{S_5}}{145}$
+
+**donde $\hat{S_1},···,\hat{S_5}$ son las matrices de covarianzas en cada época.**
+
+
+```{r}
+df <- tidy(model)$df[2]
+
+S_i <- 
+    sk %>%
+    group_split(epoch, keep = F) %>%
+    map(cov)
+
+S <- (29 * S_i[[1]] + 29 * S_i[[2]] + 29 * S_i[[3]] + 29 * S_i[[4]] + 29 * S_i[[5]]) / df
+
+mu_i<- 
+    sk %>%
+    group_split(epoch, keep = F) %>%
+    map(colMeans)
+    
+# calcular matriz de distancias
+d = matrix(nrow = 5, ncol = 5, dimnames = list(levels(skulls$epoch), levels(skulls$epoch)))
+
+for(i in 1:5){
+    for(j in 1:5)
+    d[i,j] <- t(mu_i[[i]] - mu_i[[j]]) %*% solve(S) %*% (mu_i[[i]] - mu_i[[j]])
+}
+
+
+as.dist(d)
+```
+
+### d)
+**Realizar un escalado multidimensional con la matriz de distancias obtenida en el apartado anterior y representar las cinco épocas con las dos coordenadas principales.**
+
+```{r}
+cmdscale(d) %>%
+    as_tibble(.name_repair = "unique", rownames = "epoch") %>%
+    ggplot(aes(...1,...2, label = epoch)) +
+    geom_point() +
+    geom_text(nudge_y = .015)
+```
+
+
+## Pregunta 7 (\*) 
+**Escalado multidimensional no métrico:**
+**En los problemas de escalado no métrico se parte de una matriz de similaridades, disimilaridades o distancias $(\delta_{ij})$ entre objetos o individuos que se ha obtenido por la estimación directa de un juez o grupo de expertos, o por estimación por rangos o rangos por pares, es decir, sin una métrica a partir de unas variables observadas.**
+
+*La distancia así obtenida se supone que está relacionada con la verdadera distancia pero de una manera compleja. Es decir, seguramente los expertos utilizan en sus valoraciones ciertas variables o dimensiones, además de elementos de error y variabilidad personal. Así, la verdadera distancia se puede considerar una función monótona creciente de las distancias dadas*
+
+$\hat{d_{ij}} = \varphi(\delta{_{ij}})$
+
+**Escalado multidimensional isotónico**
+*Una versión de escalado multidimensional no métrico se basa en una vieja idea de Kruscal y Shepard (1960). Dada una disimilaridad $(\delta_{ij})$, se trata de elegir una configuración de puntos con su distancia euclídea $(d_{ij})$ que minimize*
+
+$stress^2 = \sum_{i<j}{[d_{ij} − \varphi(\delta_{ij})]^2}/\sum_{i<j}{d^2_{ij}} $
+
+*para ambas, la configuración y la función creciente $\varphi$. Así, la localización, la rotación, la reflexión y la escala de la configuración de puntos son todas indeterminadas. En R tenemos la función `isoMDS()` del paquete `MASS` en la que se ha implementado un algoritmo de optimización, lógicamente, un poco lento.*
+
+*Aplicar este escalado isotónico a la matriz de distancias del ejercicio 1.*
+
+
+
+
+[^1]: Aquí la palabra “similitudes“ se utiliza coloquialmente y no es correcta según la definición estadística. Se ha utilizado porque estaba en el ejercicio original. En realidad es una matriz de distancias.
+
+[^2]: El paquete ade4 dispone de una función is.euclid().
+
+[^3]: Fuera de la genética, ésta es la que se conoce como distancia de Bhattacharyya. 
+
+[^4]: También llamado coeficiente de acoplamiento simple.
+
+[^5]: Considerar atentamente si las variables binarias son simétricas o asimétricas.
+
+[^6]: También se pueden obtener con el data.frame skulls del paquete HSAUR.

@@ -1,0 +1,317 @@
+---
+title: "Análisis de correspondencias"
+author: "Alejandro Keymer"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#### 1. Sea N = (nij) la matriz I × J de frecuencias absolutas observadas de la siguiente tabla
+
+$$
+\begin{matrix}
+  &  E1 & E2 & E3 \\
+A1 & 6 & 1 & 11 \\
+A2 & 1 & 3 & 11 \\
+A3 & 4 & 25 & 0 \\
+A4 & 2 & 2 & 20 
+\end{matrix}
+$$
+
+donde se han contabilizado unos animales en función de su especie E1, E3 y E3 y el área o región
+A1, A2, A3 y A4, de modo que I = 4 y J = 3 en este caso.
+
+##### a) Escribir la tabla como el objeto tabla.N de R con sus nombres de filas y de columnas.
+Para ello podemos entrar los datos en una hoja de cálculo como se puede ver en la figura 1.
+A continuación seleccionamos las celdas, incluyendo las que contienen las etiquetas, y las
+copiamos al portapapeles. Entonces con el siguiente código1 los cargamos en R:
+
+```
+tabla <- read.table("clipboard")
+tabla.N <- as.table(as.matrix(tabla))
+```
+
+
+```{r}
+read.table("clipboard")
+```
+
+
+
+##### b) Calcular la matriz de frecuencias relativas F = (fij), donde fij = nij/n y donde n = n·· = PI
+i=1
+PJ
+j=1 nij .
+Si en R el objeto tabla.N contiene las frecuencias absolutas, n es sum(tabla.N). Al resultado
+lo llamaremos tabla.F.
+1En OSX la instrucción es read.table(pipe("pbpaste"))
+
+##### c) Calcular las frecuencias relativas marginales para las filas (que llamaremos pesos o masas)
+fi· =
+XJ
+j=1
+fij , i = 1, · · · , I o matricialmente f = F1
+donde 1 = (1, · · · , 1)0.
+Calcular las frecuencias relativas marginales para las columnas (que llamaremos fila media)
+f·j =
+XI
+i=1
+fij , j = 1, · · · , J o matricialmente c = F01
+Observemos que en R estos vectores se pueden obtener con la función apply así:
+margin.f <- apply(tabla.F,1,sum)
+margin.c <- apply(tabla.F,2,sum)
+También así
+margin.f <- margin.table(tabla.F,1)
+margin.c <- margin.table(tabla.F,2)
+Utilizar también la función addmargins() para ver la tabla con las marginales.
+
+
+##### d) El siguiente paso es calcular la matriz de frecuencias relativas condicionadas al total de la fila:
+P = D−1
+f F
+donde Df es la matriz diagonal con los elementos del vector f.
+Cada fila de esta nueva matriz es un vector p0
+i (escrito en columna) que llamaremos perfil de
+la fila i.
+Para calcular los perfiles podemos hacerlo matricialmente,
+tabla.P <- diag(1/margin.f) %*% tabla.F
+aunque es más eficiente esto:
+tabla.P <- sweep(tabla.F, 1, margin.f, "/")
+En todo caso la tabla de perfiles se puede calcular directamente desde la matrizNde frecuencias
+absolutas:
+perfiles <- prop.table(tabla.N, 1)
+
+
+##### e) El objetivo del Análisis de Correspondencias es representar las I filas (también las columnas)
+o puntos del espacio RJ en un espacio de dimensión inferior.
+Como en este caso las filas de P o perfiles estan en un espacio de dimensión 3, podemos
+dibujarlas como puntos con ayuda del paquete rgl.
+require(rgl)
+# dibujamos los ejes
+rgl.lines(c(0,1.2),c(0,0),c(0,0))
+rgl.lines(c(0,0),c(0,1.2),c(0,0))
+rgl.lines(c(0,0),c(0,0),c(0,1.2))
+# el plano
+rgl.lines(c(0,0),c(0,1),c(1,0),size=2)
+rgl.lines(c(0,1),c(1,0),c(0,0),size=2)
+rgl.lines(c(0,1),c(0,0),c(1,0),size=2)
+# los puntos
+# rgl.points(perfiles[,3],perfiles[,1],perfiles[,2],size=4)
+rgl.texts(perfiles[,3],perfiles[,1],perfiles[,2],text=row.names(perfiles))
+Página 2 de 6
+Figura 2: Perfiles de las cuatro regiones en el espacio de coordenadas triangular.
+Con el ratón se puede mover el gráfico y observar que los puntos pertenecen todos a un mismo
+plano ya que sus elementos suman 1, de manera que se pueden representar en un espacio de
+dimensión J − 1 o inferior.
+La figura 2 muestra una representación bidimensional que se obtiene con el siguiente código:
+tabla.x <- 1 - perfiles[,1] - perfiles[,3]/2
+tabla.y <- perfiles[,3] * sqrt(3)/2
+plot.new()
+lines(c(0,1,0.5,0),c(0,0,sqrt(3)/2,0), col="gray", lwd=2)
+text(c(0,1,0.5),c(0,0,sqrt(3)/2),labels=colnames(tabla))
+text(tabla.x,tabla.y,labels=rownames(tabla))
+
+
+##### f ) Calcular el punto medio de las filas o centroide.
+Para ello recordemos que hemos llamado vector de pesos o masas al vector f. Si calculamos la
+media ponderada de las filas de P o perfiles con esos pesos wi = fi·, el resultado es
+¯p =
+PI
+i=1 wipi PI
+i=1 wi
+= P0Df1 = F0D−1
+f Df1 = F01 = c
+Es decir, el punto medio es el vector de c de frecuencias relativas marginales para las columnas.
+Añadir este punto a la figura 2 y observar que efectivamente es el centroide de los puntos que
+representan a las filas.
+2. La distancia ji-cuadrado
+Si deseamos representar los perfiles en un espacio de dimensión reducida, la distancia euclídea no
+es conveniente ya que no tiene en cuenta los diversos pesos o masas de cada perfil.
+Recordemos que el estadístico ji-cuadrado que se utiliza en el contraste de independencia de una
+Página 3 de 6
+tabla de contingencia es
+2 =
+X(frec. observadas − frec. esperadas)2
+frec. esperadas =
+XI
+i=1
+XJ
+j=1
+(nfij − nfi·f·j)2
+nfi·f·j
+Con una cierta habilidad, esta ji-cuadrado se puede reescribir en la forma
+2 =
+XI
+i=1
+XJ
+j=1
+n2
+nf·j
+(fij − fi·f·j)2
+fi·
+=
+XI
+i=1
+XJ
+j=1
+nfi·
+f·j
+(fij − fi·f·j)2
+f2
+i·
+= n
+XI
+i=1
+fi·
+XJ
+j=1
+(fij
+fi·
+− f·j)2 1
+f·j
+= n
+XI
+i=1
+fi·(pi − c)0D−1
+c (pi − c)
+donde aparece una suma ponderada por los pesos o masas fi· de unas distancias entre los perfiles
+y el perfil medio o centroide.
+En el lenguaje del Análisis de Correspondencias a esa suma se le llama inercia total
+2 = 2/n =
+XI
+i=1
+fi·(pi − c)0D−1
+c (pi − c)
+Todo ello justifica la definición de la distancia ji-cuadrado entre dos perfiles fila como:
+D2(pu, pv) = (pu − pv)0D−1
+c (pu − pv)
+Así la inercia total es
+2 =
+XI
+i=1
+(masai) × (distancia 2 del perfil i-ésimo al perfil medio)2
+y geométricamente representa lo “lejos” que se hallan los perfiles fila (o columna) de su perfil
+medio. Podemos considerar que el perfil medio simboliza la hipótesis de homogeneidad (es decir, de
+igualdad) de los perfiles.
+La distancia ji-cuadrado es similar a la distancia euclídea entre los puntos o perfiles, salvo por el
+hecho de que dividimos cada cuadrado de la diferencia entre coordenadas por su correspondiente
+elemento del perfil medio.
+Calcular la matriz de distancias ji-cuadrado entre los perfiles de la tabla 1 y su inercia total2.
+Observar que la distancia ji-cuadrado entre perfiles equivale a la distancia euclídea entre los vectores
+transformados yi = D−1/2
+c pi, es decir, entre las filas de la matriz de datos
+Y = PD−1/2
+c = D−1
+f FD−1/2
+c
+3. Escalado multidimensional
+Con la matriz de distancias ji-cuadrado entre los perfiles podemos realizar un escalado multidimensional.
+Hallar las coordenadas principales para las filas de la matriz de correspondencias del ejercicio 1.
+Repetir el procedimiento con las columnas y realizar la representación simultánea.
+4. Análisis de componentes principales
+Podemos considerar la matriz Y como una matriz de datos y buscar su representación en dimensión
+reducida. Sin embargo, para ser coherentes con la definición de inercia deberemos utilizar los pesos
+2Para calcular la inercia total podemos utilizar la función chisq.test() sobre la tabla de contingencia.
+Página 4 de 6
+o masas de cada fila y no únicamente la distancia euclídea entre filas. Esto se puede hacer con la
+matriz
+Z = D1/2
+f Y = D−1/2
+f FD−1/2
+c =
+ 
+pfij
+fi·f·j
+!
+y sus componentes principales. Hay que maximizar a0Z0Za con la restricción a0a = 1.
+La solución se obtiene de los valores y vectores propios de la matriz simétrica Z0Z o, mejor, de la
+descomposición en valores singulares de la matriz Z. Nos interesa esta última opción por simetría
+y para la representación simultánea de filas y de columnas.
+A partir de la matriz de frecuencias absolutas tabla.N, los pasos son los siguientes:
+a) En primer lugar calculamos la matriz de correspondencias F
+tabla.F <- tabla.N / sum(tabla.N)
+b) Calculamos las masas de filas y columnas y sus matrices diagonales e inversas “minus half”
+margin.f <- apply(tabla.F,1,sum)
+margin.c <- apply(tabla.F,2,sum)
+Df <- diag(margin.f)
+Dc <- diag(margin.c)
+Dfmh <- diag(1/sqrt(margin.f))
+Dcmh <- diag(1/sqrt(margin.c))
+Las dos últimas instrucciones crean D−1/2
+f y D−1/2
+c
+c) La matriz Z es
+Z <- Dfmh %*% tabla.F %*% Dcmh
+Sin embargo y para evitar que tengamos un valor propio 1, inútil ya que es una solución trivial,
+es mejor estandarizar la matriz de correspondencias y utilizar la matriz
+Z = D−1/2
+f (F − fc0)D−1/2
+c
+Z <- Dfmh %*% (tabla.F - margin.f %o% margin.c) %*% Dcmh
+d) Ahora ya podemos calcular la descomposición de Z
+Z.svd <- svd(Z)
+y las coordenadas principales (pc) y estándares (sc)
+filas.sc <- Dfmh %*% Z.svd$u
+cols.sc <- Dcmh %*% Z.svd$v
+filas.pc <- filas.sc %*% diag(Z.svd$d)
+cols.pc <- cols.sc %*% diag(Z.svd$d)
+e) Las inercias principales son k = 2k
+, k = 1, . . . ,K, donde K = m´ın{I −1, J −1} y k son los
+valores singulares de Z.
+inercias <- Z.svd$d^2
+¡Y ya está! Este es el algoritmo de cálculo del análisis de correspondencias. Podemos representar
+las coordenadas que queramos.
+5. La tabla 1 muestra los colores de pelo y de ojos de un gran número de personas.
+Hallar la solución bidimensional del análisis de correspondencias
+a) Como un escalado multidimensional de filas y de columnas con la distancia ji-cuadrado.
+b) Como un análisis de componentes principales sobre la matriz Z estandarizada.
+Página 5 de 6
+Tabla 1: Color de pelo y de ojos de una muestra de individuos
+Hair color
+Eye color Fair Red Medium Dark Black
+Light 688 116 584 188 4
+Blue 326 38 241 110 3
+Medium 343 84 909 412 26
+Dark 98 48 403 681 81
+c) Con la función ca() del paquete ca de R.
+Un plot() del resultado proporciona la representación en dos dimensiones.
+6. La tabla smoke del paquete ca contiene la clasificación de los empleados de una empresa según su
+nivel profesional (cinco grupos) y sus hábitos fumadores (cuatro grupos).
+a) Dibujar un mapa óptimo del AC bidimensional y asimétrico, con las filas en coordenadas principales
+(proyecciones de los perfiles) y las columnas en coordenadas estándares (proyecciones
+de los vértices).
+El mapa asimétrico se puede conseguir con la opción map="rowprincipal" de la función
+plot() para un ca.
+b) Dibujar un mapa asimétrico, con las columnas en coordenadas principales y las filas en coordenadas
+estándares.
+c) Dibujar un mapa simétrico3 de los datos sobre los hábitos de los fumadores, es decir, representar
+tanto las filas como las columnas en coordenadas principales.
+7. El AC se utiliza ampliamente para analizar datos en ecología. Los datos del archivo benthos.xls que
+se pueden hallar en la web www.carme-n.org corresponden a los recuentos de 92 especies marinas
+identificadas en 13 muestras del fondo marino del mar del Norte. La mayor parte de las muestras
+se obtuvieron cerca de una plataforma petrolífera que producía una cierta contaminación del fondo
+marino. Existen dos muestras, utilizadas como referencia, supuestamente no contaminadas, que se
+obtuvieron lejos de la zona de influencia de la plataforma petrolífera.
+a) Calcular la inercia total.
+b) Representar los datos en un mapa asimétrico con las estaciones de muestreo en coordenadas
+principales y las especies en coordenadas estándares, es decir, el mapa asimétrico de los perfiles
+de las muestras (columnas) y de los vértices de las especies (filas).
+c) Identificar en el mapa las 7 especies más abundantes e interpretar los resultados en cuanto a
+las muestras y la contaminación.
+8. Recordemos los datos de los 24 meses observados por Florence Nightingale que pueden obtenerse
+en la página
+http://understandinguncertainty.org/node/214
+donde los 12 primeros son antes de aplicar sus nuevos métodos de cuidado en los hospitales militares.
+Consideremos las frecuencias de muertes por tres causas: Zymotic diseases, Wounds & injuries y
+All other causes, junto con la cuarta categoría de soldados en activo que se obtiene al restar los
+soldados muertos por alguna causa del total.
+Con esa tabla de contingencia realizar un análisis de correspondencias completo y valorar e interpretar
+el resultado.
+3Cuando interpretemos mapas simétricos, debemos tener siempre bien presente que un mapa simétrico no es más que
+el “solapamiento de dos mapas distintos”. Las distancias entre filas y las distancias entre columnas son aproximadamente
+distancias 2 de sus respectivos perfiles. En un mapa simétrico no existe una interpretación específica para las distancias
+entre las filas y las columnas
+Página 6 de 6

@@ -1,0 +1,320 @@
+---
+title: "Análsis de conglomerados"
+author: "Alejandro Keymer"
+date: "12/31/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(cluster.datasets, cluster, tidyverse, ggrepel, ggdendro, philentropy)
+```
+
+
+### 1.
+**Tenemos 5 objetos A, B, C, D, E. Dibujar tres dendogramas en los casos que:**
+
+ (a) sólo hay un conglomerado o cluster
+```{r}
+# podemos contruir un objeto 'hclust' que luego se puede plotear
+dd <- 
+    list(merge = matrix(c(-1, -2, -3,  1, -4,  2, -5,  3), nc=2, byrow=T),
+    height = c(2, 2, 2, 2),
+    order = c(1:5),
+    labels = LETTERS[1:5])
+
+class(dd) <- "hclust"
+ggdendrogram(dd)
+```
+ 
+ 
+ 
+ (b) los conglomerados son ${A, B}⊂{A, B, C}⊂{A, B, C, D}⊂{A, B, C, D, E},$ 
+```{r}
+dd <- 
+    list(merge = matrix(c(-1, -2, -3,  1, -4,  2, -5,  3), nc=2, byrow=T),
+    height = c(1, 2, 3, 4),
+    order = c(1:5),
+    labels = LETTERS[1:5])
+
+class(dd) <- "hclust"
+
+ggdendrogram(dd)
+```
+ 
+ 
+ 
+ 
+ (c) los conglomerados son{A, B}⊂{A, B, C},{D, E}. Inventar una distancia entre los objetos de forma que la clasificación jerárquica proporcione los conglomerados del caso (c). Probar que es correcta con la función `hclust()` y dibujar el dendograma con la ayuda de la función `plot()` de R.
+ 
+```{r}
+# aqui contruimos primero una matriz, luego calculo la distancia y creo el objeto 'hclust'
+dd_3 <- 
+rbind(
+    A=c(1,2),
+    B=c(2,2),
+    C=c(3,4),
+    D=c(6,7),
+    E=c(7,7)
+) %>%
+    dist() %>%
+    hclust()
+
+ggdendrogram(dd_3)
+```
+
+
+### 2.
+El `data.frame` all.mammals.milk.1956 del paquete `cluster.datasets` contiene los datos de los ingredientes en la leche materna de 25 animales. Las variables medidas son agua, proteínas, grasa, lactosa y cenizas (los valores están en porcentaje).
+
+ (a) Realizar un análisis de proximidades o escalado multidimensional con la distancia euclídea.
+```{r}
+# calculo de la ditancia euclidea
+
+data("all.mammals.milk.1956")
+dist_euc <- 
+    all.mammals.milk.1956 %>%
+    column_to_rownames('name') %>%
+    dist()
+
+# realizamos el escalado multidimensional
+cmd_df <- cmdscale(dist_euc, eig = T)
+
+# miramos los eigen values para ver cuantas dimensiones son relevantes
+cmd_df$eig
+
+# hacemos un grafico de las dos primeras dimensiones.
+cmd_df$points %>%
+    as.data.frame() %>%
+    rownames_to_column() %>%
+    # plot
+    ggplot(aes(V1, V2)) +
+    geom_point() +
+    geom_text_repel(aes(label = rowname), color = "darkgreen")
+
+```
+ 
+ 
+ 
+ (b) Realizar un análisis de conglomerados jerárquico con las distancias euclídeas y el método de Ward.
+
+```{r}
+# creamos el objeto con la funcion 'hclust'
+clust_df <- hclust(dist_euc, method = "ward.D2")
+
+# graficamos el dendograma
+ggdendrogram(clust_df)
+
+```
+ 
+ (c) (∗) Repetir los dos análisis anteriores con la distancia de Bhattacharyya.
+ 
+ 
+Nota: Entre los criterios para calcular la distancia entre la unión de dos conglomerados y los otros,Everitt(2005) comenta los tres más conocidos: método del mínimo (single linkage), método delmáximo (complete linkage) y método de la media (average linkage). Cuando los datos no son métricos, la media se puede reemplazar con la mediana y el método es median linkage. Además,existen otros como el método del centroide y el de Ward. La función `hclust()` dispone de todos ellos. 
+ 
+El método del centroide consiste en hallar un objeto “medio” en cada conglomerado y calcular la distancia entre conglomerados como la distancia entre sus objetos medios. El método de Ward, también llamado el método de la varianza mínima, consiste en una nueva estrategia en el primer paso del algoritmo. En lugar de unir los dos conglomerados más próximos,el método de Ward busca la unión de los dos conglomerados cuya mezcla consiga la menor suma de cuadrados dentro del conglomerado (minimum within-group variance). Actualmente hay dos algoritmos distintos para el procedimiento de Ward. El que se ejecuta con la opción "ward.D" (equivalente a la opción "ward" en versiones deR<= 3.0.3) no implementa el criterio de conglomerados de Ward (1963), mientras que la opción "ward.D2" sí lo hace. La función `agnes(*, method="ward")` corresponde a `hclust(*, "ward.D2")`. En el ejercicio 6(f) se hace una comparativa de los dos algoritmos con estos datos.
+ 
+ 
+###3.
+**El paquete `cluster` de R dispone de los datos Ruspini, muy conocidos en la literatura del análisis de conglomerados. También se pueden obtener en el archivo `milk` del paquete `flexclust` de R.**
+ 
+ a) Aplicar el procedimiento de particionado de las k-medias con el algoritmo de Hartigan-Wong2 para 4 grupos. Dibujar los puntos con un símbolo distinto para cada grupo. Hallar los centros de cada grupo y dibujarlos en el gráfico anterior. Hallar las sumas de cuadrados dentro de cada grupo y los tamaños de los conglomerados.
+ 
+```{r}
+kmn_rusp <- kmeans(ruspini, centers = 4, algorithm = "Hartigan-Wong")
+
+ct <- kmn_rusp$centers
+
+ruspini %>%
+    mutate(cluster = factor(kmn_rusp$cluster)) %>%
+    ggplot(aes(x,y, shape = cluster, color = cluster)) +
+    geom_point(aes(x=ct[1,1], y=ct[1,2]), size = 3, shape = 19, color = "gray30") +
+    geom_point(aes(x=ct[2,1], y=ct[2,2]), size = 3, shape = 17, color = "gray30") +
+    geom_point(aes(x=ct[3,1], y=ct[3,2]), size = 3, shape = 15, color = "gray30") +
+    geom_point(aes(x=ct[4,1], y=ct[4,2]), size = 3, shape = 3, color = "gray30") +
+    geom_point()
+
+# Suma de cuadrados
+broom::tidy(kmn_rusp)
+
+```
+ 
+ b) Realizar un particionado alrededor de los medoides k-medoides o PAM con la función `pam()` del paquete `cluster` de R y hallar los medoides.
+```{r}
+pam_rusp <- pam(ruspini, k = 4)
+
+# tabla de medioides
+pam_rusp$medoids
+
+```
+ 
+ 
+ 
+ 
+ c) Calcular la silueta 4como medida de la calidad de los conglomerados formados.La función `silhouette()` nos puede servir. Realizar un `summary()` y un `plot()` sobre el objeto silueta.
+```{r}
+sil <- silhouette(pam_rusp)
+summary(sil)
+
+plot(sil)
+```
+ 
+ 
+ 
+ d) Realizar un particionado jerárquico con la función `agnes()` del paquete cluster. El código es 
+ 
+```{r}
+ar <- agnes(ruspini)
+```
+
+
+ Probar con diversos números de conglomerados y decidir la mejor partición. Una buena idea es representar los conglomerados resultantes. La función `clusplot(ruspini, cluster4, color=TRUE, shade=TRUE,labels=2, lines=0)` del paqueste `cluster` con unos cuantos parámetros nos puede ayudar en la visualización gráfica del resultado.
+ 
+```{r warning=FALSE}
+ggdendrogram(ar)
+cluster2 <- cutree(ar, k=2)
+cluster4 <- cutree(ar, k=4)
+cluster5 <- cutree(ar, k=5)
+cluster7 <- cutree(ar, k=7)
+
+
+clusplot(ruspini, cluster2, color=TRUE, shade=TRUE,labels=2, lines=0)
+clusplot(ruspini, cluster4, color=TRUE, shade=TRUE,labels=2, lines=0)
+clusplot(ruspini, cluster5, color=TRUE, shade=TRUE,labels=2, lines=0)
+clusplot(ruspini, cluster7, color=TRUE, shade=TRUE,labels=2, lines=0)
+```
+ 
+```{r}
+sil2 <- silhouette(cluster2, daisy(ruspini))
+sil4 <- silhouette(cluster4, daisy(ruspini))
+sil5 <- silhouette(cluster5, daisy(ruspini))
+sil7 <- silhouette(cluster7, daisy(ruspini))
+
+# solucion con 2 clusters
+summary(sil2)
+
+# solucion con 4 clusters
+summary(sil4)
+
+# solucion con 5 clusters
+summary(sil5)
+
+# solucion con 7 clusters
+summary(sil7)
+```
+
+La mejor solución es la otorgada por 4 cluters 
+```{r}
+plot(sil4)
+```
+
+## 4.
+Realizar un particionado alrededor de los k-medoides con los datos de la leche materna del ejercicio 2. Estudiar el mejor número de conglomerados con ayuda de sus siluetas. Dibujar un gráfico bidimensional con los conglomerados hallados. 
+```{r}
+df <- 
+    all.mammals.milk.1956 %>%
+    column_to_rownames('name')
+    
+    
+ac <- agnes(df)
+
+ggdendrogram(ac) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+
+```{r}
+get_clust <- function(nclust){
+    ac %>% 
+        cutree(nclust)
+}
+
+get_sil <- function(nclust){
+    get_clust(nclust) %>%
+    silhouette(., daisy(select(all.mammals.milk.1956,-1)))
+}
+
+
+# tabla de anchos de silueta para diferentes solucones de clusters
+sapply(c('2'=2,'3' =3 ,'5'=5,'6'=6,'7'=7), function(x) get_sil(x) %>% summary() %>% .$si.summary)
+
+
+# miramos los plots de silueta de las mejores
+map(c('2'=2,'3' =3), function(x) plot(get_sil(x)))
+
+
+map(c('2'=2,'3' =3), function(x) clusplot(df, get_clust(x), color=TRUE, shade=TRUE,labels=2, lines=0))
+
+
+
+
+```
+
+
+## 5.
+En el `data.frame` `birth.death.rates.1966` del paquete `cluster.datasets` tenemos los datos en porcentaje de nacimientos y muertes de 70 países 
+```{r}
+data("birth.death.rates.1966")
+
+df <- birth.death.rates.1966 %>%
+    column_to_rownames('country')
+```
+
+ 
+ (a) Realizar de forma exploratoria un análisis de conglomerados jerárquico con la función `agnes()` y su dendograma.
+ 
+```{r}
+cty_cluster <- 
+    df %>%
+    agnes()
+
+ggdendrogram(cty_cluster) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+ 
+ (b) Por el apartado anterior parece que hay tres grupos. Realizar un PAM con $k=3$ grupos y probar distintos números con ayuda de sus siluetas.
+```{r}
+# miramos las soluciones con 2,3,4 y 5 clusters
+map(c(2:5), function (x){
+        daisy(df) %>%
+        pam(k = x) %>%
+        plot()})
+```
+ 
+ 
+ (c) Comparar el resultado del método de los k-medoides con el de las k-medias. Realizar una tabla cruzada de clasificación.
+```{r}
+set.seed(23)
+k_mn <- 
+    df %>%
+    kmeans(centers = 4)
+
+k_med <- pam(daisy(df), 4)
+
+# tabla cruzada
+dt <- 
+    data.frame(k_means = k_mn$cluster,
+               k_meds = k_med$clustering)
+
+table(dt)
+
+
+# plot
+df %>%
+    rownames_to_column() %>%
+    bind_cols(dt) %>%
+    mutate(sh = ifelse(k_means == k_meds, 'A', 'B')) %>%
+    gather(key, value, -rowname, -birth, -death, -sh) %>%
+    ggplot(aes(birth, death, color = factor(value))) +
+    geom_point(aes(shape = sh)) +
+    facet_grid(~key) +
+    scale_shape_manual(values = c(19,23), guide = F)
+    
+```
+ Hay 4 casos que x k-meds se clasifican en el cluster 1 y x k-means en el 2.
+ 
+ 
+ 6. (∗) El paquete `dendextend` proporciona un conjunto de funciones para mejorar gráficamente los dendogramas. Con la clasificación jerárquica en cuatro grupos obtenida por el método de Ward enel ejercicio 2 con los datos de la leche materna de 25 animales, realizar el siguiente análisis gráfico:
+ 
+ (a) Empezaremos con un gráfico del tipo matriz de diagramas de dispersión (scatterplot matrixoSPLOM) que podemos implementar con la función `pairs()` con los puntos en colores distintos según el conglomerado.
+ 
+ (b) Como tenemos pocas variables, también se puede hacer un gráfico de coordenadas paralelascon la ayuda de la funciónpar` `coord()` del paquete MASS. La función `kmeans` puede ser útil

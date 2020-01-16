@@ -1,14 +1,370 @@
 ---
 title: "Estadística Multivariante - PEC 2"
 author: "Alejandro Keymer"
-output: html_document
+output: 
+  pdf_document: 
+    latex_engine: xelatex
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')
+pacman::p_load(vegan, fossil, factoextra, cluster, NbClust, ggthemes, gridExtra, pander, broom, caret, tidyverse)
 ```
 
 
-Prueba de evaluación continua 2Estadística MultivarianteFrancesc Carmona4 de enero de 2020El bosque de Woodyard HammockVamos a trabajar el análisis de conglomerados con los datos ecológicos de Woodyard Hammock, un bosquede magnolias y hayas en el norte de Florida.Los datos son el recuento del número de árboles de cada especie enn= 72lugares. Se identificarony contabilizaron un total de 31 especies, sin embargo, solo trabajaremos con lasp= 13especies máscomunes que se indican a continuación:carcarCarpinus carolinianaIronwoodcorfloCornus floridaDogwoodfaggraFagus grandifoliaBeechileopaIlex opacaHollyliqstyLiquidambar styracifluaSweetgummaggraMagnolia grandifloraMagnolianyssylNyssa sylvaticaBlackgumostvirOstrya virginianaBlue BeechoxyarbOxydendrum arboreumSourwoodpinglaPinus glabraSpruce PinequenigQuercus nigraWater OakquemicQuercus michauxiiSwamp Chestnut OaksymtinSymplocus tinctoriaHorse SugarMagnoliaMagnolia grandifloraLa primera columna da un código de identificación de la especie con seis letras, la segunda columna dasu nombre científico en nomenclatura binomial y la tercera columna da el nombre común (en inglés) decada especie. Los árboles más frecuentes en este bosque son las hayas y las magnolias.Los datos se hallan en el archivowood.datque se encuentra en la web del curso STAT 505AppliedMultivariate Statistical Analysisdel Eberly College of Science de la Universidad de Pennsylvania1Ejercicio 1 (70 pt.)(a) Después de reducir la base de datos original a lasp= 13especies destacadas, nos planteamos elegiruna distancia adecuada para el análisis de conglomerados. Con este tipo de datos se suele utilizar1https://newonlinecourses.science.psu.edu/stat505/lesson/14/14.1
-la disimilaridad de Bray-Curtis con la siguiente fórmula según la Wikipedia:d(1)BC(i,j) = 1−2CijSi+SjdondeCijes la suma del menor valor para cada una de las especies en común de las dos muestras.SiySjson el total de especímenes en cada una de las muestras.También se puede calcular con la fórmula que utiliza la funciónvegdist()del paquetevegan:d(2)BC(i,j) =∑pk=1|xik−xjk|∑pk=1(xik+xjk)Calcular la disimilaridad de Bray-Curtis entre las dos primeras muestras de la base de datos conambas fórmulas (sin utilizar la funciónvegdist()). En la primera fórmula nos puede ayudar lafunciónpmin()deR.Calcular a continuación la matriz de disimilaridades completa con la funciónvegdist()y compro-bamos que el valor hallado para las dos primeras muestras coincide.(b) Sin embargo, la disimilaridad de Bray-Curtis no verifica la desigualdad triangular de forma que noes una distancia. Comprobar este hecho, tal vez con algún contraejemplo entre dos muestras o conalguna función deRque podamos hallar2.Para corregir este problema podemos transformar la disimilaridad de Bray-Curtis calculando la raízcuadrada de sus valores. Comprobar que dicha raíz cuadrada verifica la desigualdad triangular.(c) Muchos procedimientos de Análisis multivariante requieren que la distancia utilizada sea euclídea.Comprobar que la raíz cuadrada de la disimilaridad de Bray-Curtis es una distancia euclídea.(d) Evaluar la tendencia al agrupamiento con el estadístico de Hopkins que podéis calcular con lafunciónget_clust_tendency()del paquetefactoextra3.La funciónfviz_dist()del mismo paquete permite realizar una imagen de la disimilaridad pro-puesta en el apartado anterior (ordered dissimilarity image, ODI) para evaluar gráficamente la2No hay que programar. Se puede hallar una función en un cierto paquete y otra que mejora la anterior.3Un estadístico recíproco se puede calcular con la funciónhopkins()del paqueteclustertend.Página 2 de 4
-tendencia al agrupamiento. También la misma funciónget_clust_tendency()lo hace con unaimagen menos vistosa. ¿Cuantos conglomerados se intuyen?Para saber más sobre el análisis de la tendencia al agrupamiento, la fórmula del estadístico deHopkins y un ejemplo se puede consultar la páginahttps://www.datanovia.com/en/lessons/assessing-clustering-tendency/Nota: Un valor alto del estadístico de Hopkins nos permitirá realizar el análisis de conglomeradoscon la confianza de que los grupos estarán bastante bien formados. Un valor bajo nos dice que laformación de los conglomerados será mucho más difícil y no tan clara.(e) Realizar un análisis de conglomerados jerárquico con el método de Ward4de la distancia propuestaen el apartado (c). Dibujar el dendograma resultante.Nota: Justamente el método de Ward exige que la distancia sea euclídea, pero no necesariamentela distancia euclídea.Dibujar también unheatmapde este análisis con la funciónheatmap(). Para ello, hay que elegirbien los parámetrosdistfun=yhclustfun=y una escala de colores. ¿Para qué sirve elheatmap?Nota: No nos interesa reordenar las variables o columnas y tampoco un dendograma sobre ellas.(f) El siguiente paso es estudiar por algún criterio el número óptimo de conglomerados para el análisisjerárquico. Con la distancia del apartado (c) en particular, lo más sencillo es utilizar el criterio delas siluetas.Sin embargo, el criterio de las siluetas y otros métodos como el de la suma de cuadrados dentro delos grupos o WSS o también el estadístico GAP se pueden aplicar con la funciónfviz_nbclust()del paquetefactoextra. Habrá que especificar que se trata del método de clasificación jerárquico(que por defecto utiliza el método de Ward) y también la distancia raíz cuadrada de la disimilaridadde Bray-Curtis.(g) Estudiar con la misma distancia el número óptimo de conglomerados con el método PAM.(h) De los apartados anteriores se deduce que no hay un número claro de conglomerados. Un ecólogoexperto propone que sean 6, ya que su experiencia así lo ha visto en otros bosques similares. Dibujarel dendograma del apartado (e) con esta partición.Con el objetivo de caracterizar los conglomerados, calcular una tabla con las medianas de las fre-cuencias de cada especie en cada uno de los seis conglomerados del dendograma anterior. Descartarde esta tabla las especies con una mediana inferior o igual a 4 en todos los conglomerados.Representar la tabla anterior con un análisis de correspondencias y un gráfico asimétrico.4Se puede utilizar la funciónhclust()o la funciónagnes().Página 3 de 4
+## Ejercicio 1 (70 pt.)
+### (a) 
+**Después de reducir la base de datos original a las $p=13$ especies destacadas, nos planteamos elegir una distancia adecuada para el análisis de conglomerados. Con este tipo de datos se suele utilizar la disimilaridad de Bray-Curtis con la siguiente fórmula según la Wikipedia:**
+$$ d^{(1)}_{BC}(i,j) = 1 − \frac{2C_{ij}}{S_i+S_j}$$
+
+**donde $C_{ij}$ es la suma del menor valor para cada una de las especies en común de las dos muestras. $S_i$ y $S_j$ son el total de especímenes en cada una de las muestras. También se puede calcular con la fórmula que utiliza la función `vegdist()` del paquete `vegan`**
+
+$$ d^{(2)}_{BC}(i,j) = \frac{\sum^{p}_{k=1}|x_{ik}−x_{jk}|}{\sum^{p}_{k=1}(x_{ik}+x_{jk})} $$ 
+
+**Calcular la disimilaridad de Bray-Curtis entre las dos primeras muestras de la base de datos con ambas fórmulas (sin utilizar la función `vegdist()`). En la primera fórmula nos puede ayudar la función `pmin()` de R. Calcular a continuación la matriz de disimilaridades completa con la función `vegdist()` y comprobamos que el valor hallado para las dos primeras muestras coincide:**
+
+
+En primer lugar se calculan los datos y se crean nombres de fila con las coordenadas de cada muestra:
+```{r}
+species <- c('carcar','corflo','faggra', 'ileopa','liqsty','maggra',
+             'nyssyl','ostvir','oxyarb', 'pingla','quenig','quemic','symtin')
+
+df <- 
+    read.table("wood.dat", header=T) %>%
+    select(x,y,species) %>%
+    unite(rowname, x, y, sep = "-") %>%
+    column_to_rownames()
+```
+
+Con la base hacemos el cálculo *manual* con las fórmulas descritas utilizando las dos primeras muestras:
+
+```{r}
+# formula 1
+(d_bc_1 <- 1 - (2 * sum(pmin(df[1,], df[2,]))) / (sum(df[1,]) + sum(df[2,])))
+
+# formula 2
+(d_bc_2 <- sum(abs(df[1,] - df[2,])) / sum(df[1,] + df[2,]))
+```
+
+
+A continucación se realiza el cálculo de la matriz de disimilaridad utilizando la  función `vegdist` que, por defecto, utiliza la distancia de Bray–Curtis. Finalmente revisamos que la primera distancia, entre las dos primeras muestras, coincide con las calculadas manualmente.
+
+```{r}
+df_dist <- vegdist(df)
+df_dist[1]
+```
+
+Se puede ver que las tres soluciones dan el mismo valor para la distancia entre las primeras dos muestras. 
+
+--------
+
+ 
+### (b)
+**Sin embargo, la disimilaridad de Bray-Curtis no verifica la desigualdad triangular de forma que no es una distancia. Comprobar este hecho, tal vez con algún contra ejemplo entre dos muestras o con alguna función de R que podamos hallar. Para corregir este problema podemos transformar la disimilaridad de Bray-Curtis calculando la raíz cuadrada de sus valores. Comprobar que dicha raíz cuadrada verifica la desigualdad triangular.** 
+
+Para verificar la desigualdad triangular se puede utilizar la función `tri.ineq` de la librería `fossil`. Con esta función podemos corroborar que la distancia de Bray-Curtis calculada **no** verifica la desigualdad triangular, pero la raiz cuadrada de las distancias, si lo hacen. Al examinar la función en sí, es posible modificar el procedimiento por el que se verifica la desigualdad triangular, y encontar un conta ejemplo especifico. La fórmula busca si hay casos en que se cumpla que el "cateto" mas grande, sea mayor a la suma de los otros dos "catetos", lo que implica que no es un triángulo. 
+
+```{r}
+tri.ineq(df_dist)
+
+# función modificada para encontrar contrajemeplo. Devuelve el primer contraejemplo que encuentra.
+mat <- as.matrix(df_dist)
+    n <- dim(mat)[1]
+    for (i in 1:(n - 2)) {
+        for (j in (i + 1):(n - 1)) {
+            for (k in (j + 1):n) {
+                sds <- c(mat[j, i], mat[k, i], mat[k, j])
+                lng <- max(sds)
+                if (lng > (sum(sds) - lng)){ 
+                  return()}
+            }
+        }
+    }
+
+    
+# no se satisface para las muestras:
+rownames(mat)[j]
+rownames(mat)[i]
+rownames(mat)[k]
+
+```
+
+En cambio, para la distancia al cuadrado podemos ver que si se cumple. 
+```{r}
+# cuadrado de las distancias
+sq_dist <- sqrt(df_dist)
+tri.ineq(sq_dist)
+```
+
+
+---
+ 
+### (c)
+**Muchos procedimientos de Análisis multivariante requieren que la distancia utilizada sea euclídea. Comprobar que la raíz cuadrada de la disimilaridad de Bray-Curtis es una distancia euclídea.**
+
+Es posible crear una función con las fórmulas del apartado 8.2 del libro de *C.M. Cuadras*, para poder valorar si la diferencia corresponde a una distancia *euclidea*.
+
+```{r}
+is_euclidean <- function(diss){
+    mat <- as.matrix(diss)
+    n <- dim(mat)[1]
+    A <- mat * -(1/2)
+    H <- diag(n) - (1/n) * (rep(1,n) %*% t(rep(1,n)))
+    B <- H %*% A %*% H 
+    
+    # prueba 
+    eig <- eigen(B)
+    all(eig$values >= 0)
+}
+
+
+# probamos con la raiz cuadrada de la distancia 
+is_euclidean(sq_dist)
+```
+
+
+
+----
+
+
+ 
+### (d)
+**Evaluar la tendencia al agrupamiento con el estadístico de Hopkins que podéis calcular con la función `get_clust_tendency()` del paquete `factoextra`. La función `fviz_dist()` del mismo paquete permite realizar una imagen de la disimilaridad propuesta en el apartado anterior *(ordered dissimilarity image, ODI)* para evaluar gráficamente la tendencia al agrupamiento. También la misma función `get_clust_tendency()` lo hace con una imagen menos vistosa. ¿Cuantos conglomerados se intuyen? Para saber más sobre el análisis de la tendencia al agrupamiento, la fórmula del estadístico de Hopkins y un ejemplo se puede consultar la página https://www.datanovia.com/en/lessons/assessing-clustering-tendency/**
+
+
+Se realiza el cálculo del estadistico de Hopkins. En este caso resulta en aprox 0.32, lo que se acera medianamente a 0. Los datos tienen una tendencia a agruparse moderada. Al mirar la gráfica de las distancias (la raiz de la disimilaridad) se corrpobora lo anterior. Si bien los datos no son homogeneos, la forma en como se pueden agrupar no se ve tan claramente. Se podría intuir con el gráfico que hay 1 sector donde se aglomeran bien y luego unos 4 o quizas 5 sectores donde la los datos se aglomeran de manera menos estructurada, dependiendo del tamaño que se consiedere válido para una agrupación.
+
+```{r fig.height=5, fig.width=5, message=FALSE}
+set.seed(41)
+get_clust_tendency(df, nrow(df)-1, graph = F)$hopkins_stat
+
+fviz_dist(sq_dist, lab_size = 5) +
+    # hay un 'bug' al compilar el pdf, que se ven los bordes de cada 'tile'
+    # para arreglarlo hay que mapear 'color' a la variable de valor.
+    aes(color = value) +
+    scale_fill_viridis_c(direction = -1, option = "A") + 
+    scale_color_viridis_c(direction = -1, option = "A") +
+    guides(fill = F, color = F)
+
+```
+
+
+----
+
+
+### (e)
+**Realizar un análisis de conglomerados jerárquico con el método de *Ward* de la distancia propuesta en el apartado (c). Dibujar el dendograma resultante.**
+
+**Nota: Justamente el método de *Ward* exige que la distancia sea euclídea, pero no necesariamentela distancia euclídea.**
+
+**Dibujar también un *heatmap* de este análisis con la función `heatmap()`. Para ello, hay que elegir bien los parámetros `distfun=` y `hclustfun=` y una escala de colores. ¿Para qué sirve el heatmap?**
+
+**Nota: No nos interesa reordenar las variables o columnas y tampoco un dendograma sobre ellas.**
+
+
+El dendograma permite detallar mejor el agrupameint aglomerativo que se intuía en el apartado anterior. 
+```{r message=FALSE}
+clust_1 <- agnes(sq_dist, diss = T, method = "ward")
+
+fviz_dend(clust_1, cex = .4, lwd = .3)
+```
+
+La ventaja del "heatmap" es que incluye la infromacion de las columnas. En este caso es posible ver la de manera gráfica la distibución de las especies en las diferentes muestra. Si ademas utilizamos un dendograma y ordenamos las muestras según el dendograma, obtenemos información visual de como se distribuyen las especies en las ramas del dendograma, y como se podrian construir los diferentes clusters. 
+
+```{r}
+heatmap(as.matrix(df),
+        Colv = NA,
+        distfun = function(x) sqrt(vegdist(x)), 
+        hclustfun = hcut,
+        col = hcl.colors(256, palette = "Inferno"))
+```
+
+
+
+---
+
+
+### (f) 
+**El siguiente paso es estudiar por algún criterio el número óptimo de conglomerados para el análisis jerárquico. Con la distancia del apartado (c) en particular, lo más sencillo es utilizar el criterio de las siluetas. Sin embargo, el criterio de las siluetas y otros métodos como el de la suma de cuadrados dentro de los grupos o WSS o también el estadístico GAP se pueden aplicar con la función `fviz_nbclust()` del paquete `factoextra`. Habrá que especificar que se trata del método de clasificación jerárquico (que por defecto utiliza el método de Ward) y también la distancia raíz cuadrada de la disimilaridad de Bray-Curtis.**
+
+
+```{r fig.align='center', fig.height=3, fig.width=7}
+grid.arrange(
+    fviz_nbclust(df, diss = sq_dist, FUNcluster = hcut, method = "silhouette") + 
+        theme_classic(base_size = 8),
+    fviz_nbclust(df, diss = sq_dist, FUNcluster = hcut, method = "wss") + 
+        theme_classic(base_size = 8),
+    fviz_nbclust(df, diss = sq_dist, FUNcluster = hcut, method = "gap_stat", verbose = F) + 
+        theme_classic(base_size = 8),
+    nrow = 1)
+
+```
+
+En este caso podemos observar que: Por el método de las siluetas la solución mas adecuada es las de 2 clusters. Por el método `gap_stat`, la solución óptima es la de 3 clusters. Por el método de WSS no hay una solución muy clara en la que se pueda establecer una reducción drástica o un *codo*. Quizás se podría decir que hay un *codo* en la solución de 2 clusters, y luego una een la de 6.
+
+---
+
+
+### (g)
+**Estudiar con la misma distancia el número óptimo de conglomerados con el método PAM.**
+```{r fig.align='center', fig.height=3, fig.width=7}
+grid.arrange(
+    fviz_nbclust(df, diss = sq_dist, FUNcluster = pam, method = "silhouette") + 
+        theme_classic(base_size = 8),
+    fviz_nbclust(df, diss = sq_dist, FUNcluster = pam, method = "wss") + 
+        theme_classic(base_size = 8),
+    fviz_nbclust(df, diss = sq_dist, FUNcluster = pam, method = "gap_stat", verbose = F) + 
+        theme_classic(base_size = 8),
+    nrow = 1)
+
+```
+
+
+
+
+### (h)
+**De los apartados anteriores se deduce que no hay un número claro de conglomerados. Un ecólogo experto propone que sean 6, ya que su experiencia así lo ha visto en otros bosques similares. Dibujar el dendograma del apartado (e) con esta partición. Con el objetivo de caracterizar los conglomerados, calcular una tabla con las medianas de las frecuencias de cada especie en cada uno de los seis conglomerados del dendograma anterior. Descartar de esta tabla las especies con una mediana inferior o igual a 4 en todos los conglomerados. Representar la tabla anterior con un análisis de correspondencias y un gráfico asimétrico.**
+
+```{r warning=FALSE}
+clust_6 <- hcut(sq_dist, k = 6, hc_func = "agnes", hc_method = "ward.D2")
+
+fviz_dend(clust_6,
+          palette = hcl.colors(palette = "Zissou 1", 6),
+          lwd = .5,
+          cex = .5)
+```
+
+```{r}
+dt <- 
+    df %>%
+    mutate(cluster = factor(clust_6$cluster)) %>%
+    group_by(cluster) %>%
+    summarise_all(median) %>%
+    # traslocamos el tibble para mejor visualización
+    gather(especie, value, -cluster) %>%
+    spread(cluster, value) %>%
+    mutate(chk = `1` <= 4 & `2` <= 4 & `3` <= 4 & `4` <= 4 & `5` <= 4 & `6` <= 4 ) %>%
+    filter(!chk) %>% select(-chk) %>%
+    column_to_rownames('especie')
+
+pander(dt)
+```
+
+
+```{r, results="asisi"}
+ca_df <- 
+    FactoMineR::CA(dt, graph = F)
+
+pander(ca_df$eig)
+```
+
+
+```{r, results="asisi"}
+fviz_ca_biplot(ca_df, map ="rowprincipal", arrows = c(F,T), repel = T)
+```
+
+
+## Ejercicio 2 (30 pt.)
+**Es posible utilizar la regresión logística para estudiar la discriminación entre dos grupos dado un conjunto de variables explicativas. Para más detalles podéis consultar el apartado 8.10 del libro de Manly.**
+
+### (a)
+**Realizar un análisis discriminante con ayuda de la regresión logística con los datos de los 49 gorriones hembra después de una tormenta. Reproducir con todo detalle la tabla 8.6 de la página 153 del libro de Manly.**
+
+```{r}
+load("gorriones.RData")
+
+mod_lg <-
+    glm(superviv ~ x1 + x2 + x3 + x4 + x5, gorriones, family = binomial(link = "logit"))
+
+mod_NULL <-
+    glm(superviv ~ 1, gorriones, family = binomial(link = "logit"))
+```
+
+```{r}
+# Para reporducir *con todo detalle* se puede utilizar la sintaxis de dplyr y crear la tabla
+tbl <-
+    tidy(mod_lg) %>%
+    mutate(
+        chi_2 = (estimate / std.error) ^ 2,
+        Variable = c(
+            "Constant",
+            "Total length",
+            "Alar length",
+            "Length beak and head",
+            "Length humerus",
+            "Length keel of sternum"
+        ),
+        chi_2 = round(chi_2, 2)
+    ) %>%
+    mutate_at(vars(estimate:p.value), list( ~ round(., 3))) %>%
+    select(
+        Variable,
+        'β estimate' = estimate,
+        'Standard \\\\ error' = std.error,
+        'Chi-squared' = chi_2,
+        'p-Value' = p.value
+    )
+
+
+tbl[1,4:5] <- "--"
+
+
+pander(tbl, justify = "lcccc")
+```
+
+
+### (b)
+**Contrastar con un test $\chi^2$ la significación de la regresión y explicar su resultado.**
+```{r}
+anova(mod_NULL, mod_lg, test = "Chisq")
+```
+
+
+
+## (c)
+**Realizar un gráfico como el de la figura 8.2 de la página 156 del libro de Manly pero con los datos de este ejercicio y valorar el resultado.**
+```{r}
+tibble(
+    fitted = mod_lg$fitted.values,
+    class = augment(mod_lg)$superviv
+) %>%
+    rowid_to_column() %>%
+    group_by(class) %>%
+    mutate(mean = mean(fitted)) %>%
+    ggplot(aes(rowid, fitted, shape = class)) +
+    geom_point(size = 3) +
+    geom_line(aes(y=mean)) +
+    scale_shape_manual(values = c("N","S")) +
+    theme_base(base_size = 10) +
+    labs(x="Gorriones", y="Probabilidad") +
+    scale_y_continuous(limits = c(0,1)) +
+    guides(shape = F)
+
+
+```
+
+
+### (d)
+**Calcular la tabla de confusión de la clasificación obtenida con la regresión logística.**
+
+```{r}
+ypred <- 
+    ifelse(
+        predict.glm(mod_lg, type = "response") > 0.5,
+        'S', 'N') %>%
+    factor()
+
+
+# para la matriz de confusión se puede utilizar la función de 
+# la librería `caret`
+cm <- confusionMatrix(gorriones$superviv, ypred)
+    
+
+pander(cm$table)
+
+
+pander(cm$overall)
+
+
+```
+
