@@ -253,7 +253,10 @@ pander(dt)
 
 ```{r, results="asisi"}
 ca_df <- 
-    FactoMineR::CA(dt, graph = F)
+    FactoMineR::CA(t(dt), graph = T)
+
+ca_df <- 
+    FactoMineR::CA(dt, graph = T)
 
 pander(ca_df$eig)
 ```
