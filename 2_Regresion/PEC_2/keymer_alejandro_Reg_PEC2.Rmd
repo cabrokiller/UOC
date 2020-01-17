@@ -2,11 +2,7 @@
 title: "Regresión, modelos y métodos - PEC 2"
 author: "Alejandro Keymer"
 date: "1/6/2020"
-output: 
-  pdf_document: 
-    fig_height: 4
-    fig_width: 5
-    latex_engine: xelatex
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -45,7 +41,7 @@ ggplot(df, aes(x = IndMutant, y = Perc_Reacting, color = IndMutant)) +
     theme_classic() + scale_color_brewer(type = "qual", palette = 2)
 ```
 
-En el gráfico se puede observar que visualmente si que se aprecian diferencias entre los dos grupos.
+En el gráfico se puede observar que visualmente **si** que se aprecian diferencias entre los dos grupos.
 
 A continuación se plantean diferentes tests para valorar si esta diferencia es significativa o no. 
 
@@ -56,7 +52,7 @@ mod_null <-
 mod_log <- 
     glm(IndMutant ~ Perc_Reacting, df, family = binomial(link = "logit"))
 
-pander(summary(mod_log))
+summary(mod_log)
 
 anova(mod_null, mod_log, test = "Chisq")
 
@@ -69,14 +65,15 @@ En la regresión logística se aprecia que exite una diferencia entre los dos gr
 ```{r}
 mod <- coin::independence_test(p_reac ~ IndMutant, df)
 print(mod)
+
 ```
 
 Al realizar el test de permutaciones se confirma lo anterior en cuanto a que según el resultado se puede rechazar la H0 de igualdad de medias entre los dos grupos. 
 
 #### Test de Mann-Whitney-Wilcoxon
  
-```{r warning=FALSE}
-mod <- wilcox.test(Perc_Reacting ~ IndMutant, df)
+```{r}
+mod <- wilcox.test(Perc_Reacting ~ IndMutant, df, exact = F)
 
 pander(mod)
 ```
@@ -85,15 +82,18 @@ El test de rango de Mann-Whitney-Wilcoxon también permite establcer que se pued
 
 
 Las tres pruebas no paramétricas son coheretnes entre si, lo que afirma la conclusión de que se puede rechazar la H0 de igualdad de medias entre los grupos de Mutantes y no Mutantes, de manera significativa. 
+
 ---
 
 ## (b)
 **Dibujar el gráfico de dispersión del porcentaje de reacción en función del número de pulsos de luz con dos rectas que representen las dos sub poblaciones por separado, sin modelo común. Describir la forma de la relación. ¿Qué sugiere sobre el patrón de respuestas de abstinencia en las dos sub-poblaciones de *C. elegans* para un número creciente de pulsos de luz? ¿Cómo encaja su respuesta en el contexto de habituación? Explique por qué estos resultados sugieren una participación de las neuronas sensoriales de PVD en la nocicepción y la habituación. Nota: En este apartado consideramos la variable respuesta el porcentaje de reacción sin ninguna transformación.**
  
 ```{r}
+# las recta de regresión se puden graficar con la función 'geom_smooth()' y el
+# método de 'lm' que corresponde al modelo lineal.
 ggplot(df, aes(Pulses,Perc_Reacting,  color = IndMutant)) + 
     geom_point() +
-    geom_smooth(method = "lm") +
+    geom_smooth(method = "lm", se= F) +
     labs(title = "Dos rectas por separado", y = "Porcentaje de reacción", color = "Mutante") +
     theme_classic() +
     scale_color_tableau()
@@ -102,17 +102,17 @@ ggplot(df, aes(Pulses,Perc_Reacting,  color = IndMutant)) +
 
 En el gráfico de las dos poblaciones se puede observar que, por una parte, ambas curvas muestran una relación inversa entre el Porcentaje de reacción y la cantidad de Pulsos. Esta relación sugiere que ambas pobalciones de *C.Elegans* presetnan respuetsas de adaptación en la respuesta a los pulsos de luz, es decir, que frente al estímulo repetitivo, se produce una habituación al aestímulo y la respuesta va siendo cada vez menor. 
 Por otra parte es posible apreciar que la poblacion de **mutantes** presenta un *intercepto* algo menor que la población **no mutante**, que traduce la mayor lentitud de las neuronas sensoriales en procesar el estímulo. 
-Se observa además que la pendiente de ambas cuurvas es relativamente similar, lo que ppodría indicar que la velocidad de habituación en ambas poblaciones es muy similar. 
+Se observa además que la pendiente de ambas curvas es relativamente similar, lo que podría indicar que la velocidad de habituación en ambas poblaciones es muy similar. 
 
 ```{r}
 mod_0 <- lm(Perc_Reacting ~ Pulses, filter(df, IndMutant == 0))
 mod_1 <- lm(Perc_Reacting ~ Pulses, filter(df, IndMutant == 1))
 
 # modelo de NO MUTANTES
-pander(mod_0)
+sumary(mod_0)
 
 # modelo de MUTANTES
-pander(mod_1)
+sumary(mod_1)
 ```
 
  
@@ -123,21 +123,25 @@ pander(mod_1)
 
 
 ## (c)
-**Proponer un modelo lineal que permita estudiar la asociación de la variable respuesta *porcentaje de reacción* (sin ninguna transformación) con la variable Pulses y el factor IndMutant. ¿Cual es la ecuación del modelo final propuesto? ¿Es un modelo significativo? ¿Qué tanto por ciento de la variabilidad del porcentaje de reacción queda explicado por el modelo? ¿Todos los coeficientes de las variables explicativas del modelo son significativos? Dibujar el gráfico de dispersión del apartado anterior pero con las rectas resultantes del modelo.** 
+**Proponer un modelo lineal que permita estudiar la asociación de la variable respuesta *porcentaje de reacción* (sin ninguna transformación) con la variable `Pulses` y el factor `IndMutant`. ¿Cual es la ecuación del modelo final propuesto? ¿Es un modelo significativo? ¿Qué tanto por ciento de la variabilidad del porcentaje de reacción queda explicado por el modelo? ¿Todos los coeficientes de las variables explicativas del modelo son significativos? Dibujar el gráfico de dispersión del apartado anterior pero con las rectas resultantes del modelo.** 
  
  
 ```{r}
-mod_1 <- lm(Perc_Reacting ~ Pulses * IndMutant, df)
-mod_2 <- lm(Perc_Reacting ~ Pulses + IndMutant, df)
+# modelo que incluye la interacción entre la variable cualitativa y el factor.
+# rectas con diferente pendiente.
+mod_int <- lm(Perc_Reacting ~ Pulses * IndMutant, df)
 
-summary(mod_1)
+# modelo que no incluye la interacción. Rectas paralelas
+mod_no_int <- lm(Perc_Reacting ~ Pulses + IndMutant, df)
 
-pander(anova(mod_2, mod_1))
+summary(mod_int)
+
+anova(mod_int, mod_no_int)
 ```
 
 En primer lugar creamos el modelo que incluye el predictor categorial `IndMutant` y con interacción de este con `Pulses`. El modelo presenta un valor alto de F que resulta significativo lo que permite rechazar la H0. Al mirar los predictores es posible ver que tanto `Pulses`, `IndMutant` como la interacción de estos dos resulta significativa. 
 
-Podemos corroborar además la misma infromación si hacemos el modelo que NO incluye la interacción, y luego comparamos ambos modelos con un `anova()`. El valor de $p$ del estadistico $F$ de esta prueba, es el mismo valor de significación de la interacción del modelo original.
+Podemos corroborar además la misma información si hacemos el modelo que NO incluye la interacción, y luego comparamos ambos modelos con un `anova()`. El valor de $p$ del estadistico $F$ de esta prueba, es el mismo valor de significación de la interacción del modelo original. Esto permite asumir que el modelo más válido es el que contempla la interacción del factor con la variable cualitativa. 
 
 El valor de $R^2$ refleja el porcentaje de variabilidad que explica el modelo. En este caso el modelo explica un 88.3 % de la variabilidad de la respuesta. 
 
@@ -145,70 +149,85 @@ El valor de $R^2$ refleja el porcentaje de variabilidad que explica el modelo. E
 ```{r}
 ggplot(df, aes(Pulses, Perc_Reacting, color = IndMutant)) + 
     geom_point() +
-    geom_abline(intercept = coef(mod_1)[1], 
-                slope = coef(mod_1)[2], 
+    geom_abline(intercept = coef(mod_int)[1], 
+                slope = coef(mod_int)[2], 
                 linetype = 1) +
-    geom_abline(intercept = (coef(mod_1)[1] + coef(mod_1)[3]),
-                slope = (coef(mod_1)[2] + coef(mod_1)[4]),
+    geom_abline(intercept = (coef(mod_int)[1] + coef(mod_int)[3]),
+                slope = (coef(mod_int)[2] + coef(mod_int)[4]),
                 linetype = 2) +
     labs(title = "Rectas según modelo", y = "Porcentaje de reacción", color = "Mutante") +
+    scale_color_tableau() +
     theme_classic()
       
 ```
 
-Al graficar el modelo completo se puede observar que es similar al primer gráfico, con las rectas independientes. Esto tiene sentido en la medida que el modelo contempla el efecto de los pulsos, el del factor `IndMutant` y además la interacción entre ellos, lo qu ermite tener estas dos rectas con pendientes diferentes. 
+Al graficar el modelo completo se puede observar que es similar al primer gráfico, con las rectas independientes. Esto tiene sentido en la medida que el modelo contempla el efecto de los pulsos, el del factor `IndMutant` y además la interacción entre ellos, lo que  permite tener estas dos rectas con *pendientes diferentes*. 
  
 
 ---
 
 ## (d)
-**Ahora contestaremos las preguntas y dibujaremos el gráfico del apartado anterior, si realizamos la transformación normalizante $arcsin(√p)$ sobre la variable respuesta. Hallar el intervalo de confianza al 95 % para la media del porcentaje de mutantes que reaccionan a 10 pulsos de luz en condiciones experimentales parecidas. Nota: Habrá que deshacer la transformación para dibujar “las rectas”.**
+**Ahora contestaremos las preguntas y dibujaremos el gráfico del apartado anterior, si realizamos la transformación normalizante** $\arcsin{\sqrt{p}}$ **sobre la variable respuesta. Hallar el intervalo de confianza al 95 % para la media del porcentaje de mutantes que reaccionan a 10 pulsos de luz en condiciones experimentales parecidas. Nota: Habrá que deshacer la transformación para dibujar “las rectas”.**
 
 ```{r}
 df_adj <- 
     df %>%
-    mutate(p_arcsin = asin(sqrt(Perc_Reacting/100)))
+    mutate(p_arcsin = asin(sqrt(p_reac)))
 
-mod_4 <- lm(p_arcsin ~ Pulses * IndMutant, df_adj)
-mod_5 <- lm(p_arcsin ~ Pulses + IndMutant, df_adj)
+mod_arc_int <- lm(p_arcsin ~ Pulses * IndMutant, df_adj)
+mod_arc_no_int <- lm(p_arcsin ~ Pulses + IndMutant, df_adj)
 
 
 
-pander(mod_4)
-pander(summary(mod_5))
+summary(mod_arc_int)
+summary(mod_arc_no_int)
+
+# Gráfico en dimensiones transformadas
+df_adj %>%
+  ggplot(aes(Pulses, p_arcsin, color = IndMutant)) +
+  geom_point() +
+  geom_smooth(method = "lm", fullrange=T, se = F) +
+  scale_color_tableau() +
+  theme_classic()
 
 ```
 
-
+Como en el ejemplo anterior, comenzamos realizando dos modelos; un modelo que conseidera la interacción entre el factor `IndMutant` y la variable cuantitativas `Pulses`, y otro que no. En este caso se puede observar que la interacción deja de ser significativa. De esta manera, en el caso del modelo con la variable repuesta trasnfromada, se puede simplificar quitando el término de la interacción. Lo anterior se puede ver de manera visual al realziar el grafico de disperisón en que se puede ver como ambas rectas en este caso, tienen una pendeinte muy similar, y casi paralela. 
 
 
 ```{r}
-org_cf <- sin(coef(mod_5))^2
-
-
-
+# grafico en dimensiones orginales.
 df %>%
     mutate(
-        curv_a = sin(coef(mod_5)[1] + coef(mod_5)[2] * Pulses)^2 * 100,
-        curv_b = sin(coef(mod_5)[1] + coef(mod_5)[3] + coef(mod_5)[2] * Pulses)^2 * 100
+        curv_a = sin(coef(mod_arc_no_int)[1] + coef(mod_arc_no_int)[2] * Pulses)^2 * 100,
+        curv_b = sin(coef(mod_arc_no_int)[1] + coef(mod_arc_no_int)[3] + coef(mod_arc_no_int)[2] * Pulses)^2 * 100
     ) %>%
     ggplot(aes(Pulses, Perc_Reacting, color = IndMutant)) +
     geom_point() +
     geom_line(aes(y=curv_a), color = "black") +
     geom_line(aes(y=curv_b), color = "black", linetype = 2) +
+    scale_color_tableau() +
     theme_classic()
 
 ```
-
+ 
+ Al graficar las curvas en el espacio original, e posible ver que el modelo se adapta a una relación no lineal de la variable `Pulses` con la variable `Perc_Reacting`. Esta relación se vuelve lineal al utilzar la transformación. 
+ 
+ Con todo lo anterior se podría concluir que la interaccion entre el grupo con la variable de `Pulses` no tendría mayor importancia. Se podría decir que según este modelo, no hay evidencia de que los grupos de gusano difieran en la rapidez en la que se habitúan al esímulo lumínico, sino que mas bien, el grupo de mutante reacciona menos. La diferencia en al habituacón, que se observa en la sección (a) sería un sesgo dado por la distribución de la variable `Perc_Reacting`, que al ser una proporción, se aleja de una distribución normal. 
+ 
 
 ```{r}
 # prediccion
 new_df <- tibble(Pulses = 10, IndMutant = "1")
-ypred <- predict.lm(mod_5, new_df, interval = "conf") 
+ypred <- predict.lm(mod_arc_no_int, new_df, interval = "conf") 
 
-pander(sin(ypred)^2)
+#prediccion de la respueta en la escala originl
+sin(ypred)^2 * 100
 ```
 
+El valor que predice el modelo es de alredors de un 61 %. 
+
+----
  
 # Ejercicio 2 (50 pt.)
 ```{r}
@@ -219,7 +238,6 @@ penta <-
 
 # funcion para caluclo de RMSE
 rmse <- function(x,y) sqrt(mean((x-y)^2))
-
 ```
 
 
@@ -236,14 +254,16 @@ ptest <- penta[-idx,]
 **Comprobar con los factores de inflación de la varianza que el modelo lineal completo y con todos los datos padece un problema grave de multicolinealidad. Esto justifica que debamos reducir el número de variables predictoras o utilizar algún método alternativo.**
  
 ```{r}
-mod <- lm(log.RAI ~ ., penta[-1])
-pander(mod)
+# creamos el modelo con todos los datos
+mod_full <- lm(log.RAI ~ ., penta[-1])
+mod_org <- lm(log.RAI ~ ., ptrain[-1])
+
 ```
  
  
  
 ```{r}
-X <- model.matrix(mod)[,-1]
+X <- model.matrix(mod_full)[,-1]
 
 # hacemos un plot de correlacion
 corrplot::corrplot(cor(X), method = "color", order = 'AOE')
@@ -253,6 +273,7 @@ vifs_x <- vif(X)
 pander(rbind(vifs_x, SE = sqrt(vifs_x)), digits = 3)
 ```
  
+ En primer lugar podemos evidenciar de manera visual, que las variables predeictores presentan correlación alta. Por otra parte al valorar los valore de VIF, se puede observar que hay variables con unos valores muy altos que confirman la exitencia de colinearidad que puede ser probelmática al mometo de validar el modelo completo.
 
 ---
 
@@ -262,20 +283,29 @@ pander(rbind(vifs_x, SE = sqrt(vifs_x)), digits = 3)
 
 ```{r}
 mod_step <- step(lm(log.RAI ~ ., ptrain[-1]), trace = 0)
-anova(mod, mod_step)
+anova(mod_org, mod_step)
 
 ```
 
+Una prueba de anova no permite establcer diferencias entre el modelo original y el modelo reducido por el método de `stepwise`, por lo que por parsimonia podemos elegir el modelo reducido. 
 
 ```{r}
-ypred <- predict(mod, newdata = ptest)
-rmse(ypred, ptest$log.RAI)
+# Modelo Original
+(rmse_org <- tibble(
+     modelo = "original",
+     entrenamiento = rmse(predict(mod_org), ptrain$log.RAI),
+     prueba = rmse(predict(mod_org, newdata = ptest), ptest$log.RAI)
+   ))
 
-
-ypred_step <- predict(mod_step, newdata = ptest)
-rmse(ypred_step, ptest$log.RAI)
+# Modelo reducido `stepwise`
+(rmse_step <- tibble(
+    modelo = "stepwise",
+    entrenamiento = rmse(predict(mod_step), ptrain$log.RAI),
+    prueba = rmse(predict(mod_step, newdata = ptest), ptest$log.RAI)
+))
 ```
 
+En cuanto al poder predictivo del modelo reducido, se puede observar que al utilizar la muesra de `test`, el valor del RMSE es menor que el del modelo original.
 
 ```{r}
 # Chequeamos las vifs
@@ -284,6 +314,8 @@ vifs_x <- vif(X)
 pander(rbind(vifs_x, SE = sqrt(vifs_x)), digits = 2)
 ```
  
+ 
+Si nos fiamos en los valores de las VIF, podemos observar que estos también son más bajos que los valores del modelo original. 
 
 ---
 
@@ -291,7 +323,7 @@ pander(rbind(vifs_x, SE = sqrt(vifs_x)), digits = 2)
 **Hallar el mejor modelo por el criterio del AIC y por el R2 ajustado. ¿Coinciden? ¿Es el mismo modelo que selecciona el stepwise?**
  
 ```{r }
-# creo los sub modelos
+# Se crean las combinaciones de submodelos. 
 rs <- 
     regsubsets(log.RAI ~ ., ptrain[-1], nvmax = 12) %>%
     summary()
@@ -309,6 +341,9 @@ rs_crit <-
         rss = rs$rss,
         r2_adj = rs$adjr2,
         aic = n * log(rss/n) + (2:(p+1)) * 2)
+
+# check minimo
+mn <- ifelse(which.min(rs_crit$aic) == which.max(rs_crit$r2_adj), which.max(rs_crit$r2_adj), NA)    
     
 # Creamos el plot de AIC y R2    
 rs_crit %>%
@@ -317,25 +352,27 @@ rs_crit %>%
     ggplot(aes(rowid, value, color = key, group = key)) +
     geom_point() +
     geom_line() +
-    geom_vline(xintercept = 8) +
+    geom_vline(xintercept = mn, color = "darkred") +
     facet_wrap(~key, scales = "free") +
     labs(title = "Valores de AIC y R2 segun el número de predictores empleado",
          x = "Número de predictores", y = "valor") +
+    scale_color_tableau() +
     theme_classic()
 ```
 
+En el caso de los criterios de AIC y de R², podemos observar que para las diferentes combinaciones, el modelo de 8 predictores es que *maximiza* el valor de R² y al mismo tiempo *minimiza* el AIC. 
 
 ```{r}
 # modelo elegido
-vars_aic <- rs$obj$xnames[rs$which[8,]]
+vars_aic_r2 <- rs$obj$xnames[rs$which[8,]]
 vars_step <- colnames(model.matrix(mod_step))
 
 
-pander(rbind(vars_aic, vars_step))
+pander(rbind(vars_aic_r2, vars_step))
 
 ```
 
-En este caso los criterios de AIC y de R2 ajustado, coinciden en que el mejor modelo es el que utiliza 8 parámetros (+ el intercepto). El modelo elegido por le criterio AIC / R2, resulta igual al modelo elegido mediante el procedimiento *stepwise*
+El modelo elegido por le criterio AIC / R2, resulta igual al modelo elegido mediante el procedimiento *stepwise*
  
 ---
 
@@ -348,44 +385,67 @@ pca_1 <-
     FactoMineR::PCA(graph = F)
 
 pander(t(pca_1$eig)[,1:8], digits = 2)
+```
 
+Una primera aproximación permite observar que un modelo de 8 componentes explcia hasta un 98% de la variabilidad de la muestra. Por otra parte, se puede obserar que la reducción de la varainza explicada, cae bastante desde el componente 5 en adelante lo que tambien podría ayuda a determinar el numero ideal de componentes. 
+
+```{r}
 mod_pca <- pcr(log.RAI ~ ., data = ptrain[-1], validation = "CV", ncomp = 10)
 
 plot(RMSEP(mod_pca, estimate = c("CV", "adjCV")))
-
-
-
-ypred_pca_8 <- predict(mod_pca, ptest, ncomp=8)
-rmse(ypred_pca_8, ptest$log.RAI)
-
-
-ypred_pca_6 <- predict(mod_pca, ptest, ncomp=6)
-rmse(ypred_pca_6, ptest$log.RAI)
 ```
+
+Al utilizar una validazión cruzada del modelo, podemos identificar que el RMSE se minimiza en el modelo con 6 componentes. 
+
+```{r}
+# PCA con 8 componentes
+(rmse_pca_8 <- tibble(
+     modelo = "original",
+     entrenamiento = rmse(predict(mod_pca, ncomp=8), ptrain$log.RAI),
+     prueba = rmse(predict(mod_pca, ptest, ncomp=8), ptest$log.RAI)
+   ))
+
+# PCA con 6 componentes
+(rmse_pca_6 <- tibble(
+     modelo = "original",
+     entrenamiento = rmse(predict(mod_pca, ncomp=6), ptrain$log.RAI),
+     prueba = rmse(predict(mod_pca, ptest, ncomp=6), ptest$log.RAI)
+   ))
+```
+ 
+ Al utiliza los modelos con 8 y con 6 componentes para predecir la repsuetsa en la muestra de `test` podemos corroborar que el modelo con 6 componentes da una mejor solución. 
  
 ---
 
 ## (e)
 **Estudiar una regresión PLS. ¿Cuantas componentes selecciona la validación cruzada? ¿Cual es la variabilidad de las variables predictoras explicada por 3 componentes? Con el paquete `plsdepot` se pueden estudiar las correlaciones entre las variables y las componentes y realizar el gráfico llamado *círculo de correlaciones*. ¿Cual es la variable predictora mejor correlacionada con la primera componente?**
 
-```{r, fig.show='hold'}
+```{r}
 mod_plr <- plsr(log.RAI ~ ., data = ptrain[,-1], validation = "CV", ncomp = 10)
-
-
-
-
 pls_reg <- plsdepot::plsreg1(ptrain[2:16], ptrain[17])
 
-par(mfrow = c(1,2))
+# VAriablidad explicada por 3 componentes
+mod_plr$Xvar[3]
+
 plot(RMSEP(mod_plr))
 plot(pls_reg)
+```
+
+El modelo de 3 componentes explcia hasta un `r round(as.numeric(mod_plr$Xvar[3]), 1)` de la varianza de los datos. En el gráfico se puede observar que la variable que mejor predice con el eje 1 es `P2`
 
 
+```{r}
+# PLS
+(rmse_pls <- tibble(
+    modelo = "PLS",
+    entrenamiento=rmse(predict(mod_plr, ncomp=3), ptrain$log.RAI),
+    test=rmse(predict(mod_plr, ptest, ncomp=3), ptest$log.RAI)))
 
-ypred_plr_3 <- predict(mod_pca, ptest, ncomp=3)
-rmse(ypred_plr_3, ptest$log.RAI)
+
 
 ```
+Finalmente, caluclamos el valor de RMSE que resulta de la aplicacion del modelo de PLS con la muestra de test.
+
 
 ---
  
@@ -397,7 +457,8 @@ rmse(ypred_plr_3, ptest$log.RAI)
 **Nota2: Aunque no hace falta, si se utilizan las funcines `cv.glmnet()` y `glmnet()` para el cálculo del modelo Ridge Regression, se puede comprobar que los resultados difieren notablemente de los que tenemos con la función `lm.ridge()`. Una sencilla explicación se puede leer en https://stats.stackexchange.com/questions/74206/ridge-regression-results-different-in-using-lm-ridge-and-glmnet**
 
 ```{r}
-mod_rg <- lm.ridge(log.RAI ~ ., data = ptrain[,-1], lambda = seq(0.1, 10, .005))
+# Previa expermientacion definimos valores de lambda a graficar. 
+mod_rg <- lm.ridge(log.RAI ~ ., data = ptrain[,-1], lambda = seq(0.01, 10, .005))
 
 lbd <- 
     tidy(mod_rg) %>%
@@ -411,28 +472,35 @@ lbd <-
 p1 <- tidy(mod_rg) %>%
     ggplot(aes(lambda, GCV)) +
     geom_line() +
-    geom_vline(xintercept = lbd$lambda, color = "red") +
+    geom_vline(xintercept = lbd$lambda, color = "darkred") +
     theme_classic()
 
 
 p2<- tidy(mod_rg) %>%
     ggplot(aes(lambda, estimate, color = term)) +
     geom_line() +
-    geom_vline(xintercept = lbd$lambda, color = "red") +
+    geom_vline(xintercept = lbd$lambda, color = "darkred") +
     scale_colour_viridis_d() +
     theme_classic()
 
 grid.arrange(p1,p2,nrow = 1)
+```
 
+
+Se utiliza el valor de lambda que minimiza el GCV. En este caso corresponde a un valor de `r lbd$lambda`. 
+
+```{r}
 # hacemos la prediccion con el valor de lambda que minimiza GCV
 
-ypred_rg <- cbind(1, as.matrix(ptest[2:16])) %*% coef(mod_rg)[lbd$rowid,]
+ypred_rg_t <- cbind(1, as.matrix(ptest[2:16])) %*% coef(mod_rg)[lbd$rowid,]
 
-
+ypred_rg_e <- cbind(1, as.matrix(ptrain[2:16])) %*% coef(mod_rg)[lbd$rowid,]
 
 # rendimiento del modelo
-rmse(ypred_rg, ptest$log.RAI)
-
+(rmse_rg <- tibble(
+    modelo = "Ridge R",
+    entrenamiento = rmse(ypred_rg_e, ptrain$log.RAI),
+    test = rmse(ypred_rg, ptest$log.RAI)))
 ```
 
 ---
@@ -445,28 +513,29 @@ rmse(ypred_rg, ptest$log.RAI)
 mod_lar <- lars(as.matrix(ptrain[2:16]), ptrain$log.RAI)
 mod_lar_cv <- cv.lars(as.matrix(ptrain[2:16]), ptrain$log.RAI)
 
-summary(mod_lar)
 
 plot(mod_lar)
 
-
+# minimzamos x cv
 mi_s <- mod_lar_cv$index[which.min(mod_lar_cv$cv)]
-
 ind <- 
     as_tibble(mod_lar_cv) %>%
     top_n(1, -cv) %>%
     pull(index)
+```
 
 
-
-
+```{r}
 predict(mod_lar, s = mi_s, type="coef", mode="fraction")$coef
 
 
 ypred_lasso <- predict(mod_lar, ptest[2:16], s = 0.1, mode="fraction")$fit
+ypred_lasso_e <- predict(mod_lar, ptrain[2:16], s = 0.1, mode="fraction")$fit
 
-rmse(ypred_lasso, ptest$log.RAI)
-
+(rmse_lasso <- tibble(
+    modelo = "Lasso",
+    entrenamiento = rmse(ypred_lasso_e, ptrain$log.RAI),
+    test = rmse(ypred_lasso, ptest$log.RAI)))
 
 ```
 
