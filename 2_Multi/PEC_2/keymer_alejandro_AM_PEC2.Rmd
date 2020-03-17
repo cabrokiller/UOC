@@ -47,7 +47,7 @@ Con la base hacemos el cálculo *manual* con las fórmulas descritas utilizando 
 ```
 
 
-A continucación se realiza el cálculo de la matriz de disimilaridad utilizando la  función `vegdist` que, por defecto, utiliza la distancia de Bray–Curtis. Finalmente revisamos que la primera distancia, entre las dos primeras muestras, coincide con las calculadas manualmente.
+A continuación se realiza el cálculo de la matriz de disimilaridad utilizando la  función `vegdist` que, por defecto, utiliza la distancia de Bray–Curtis. Finalmente revisamos que la primera distancia, entre las dos primeras muestras, coincide con las calculadas manualmente.
 
 ```{r}
 df_dist <- vegdist(df)
@@ -62,12 +62,13 @@ Se puede ver que las tres soluciones dan el mismo valor para la distancia entre 
 ### (b)
 **Sin embargo, la disimilaridad de Bray-Curtis no verifica la desigualdad triangular de forma que no es una distancia. Comprobar este hecho, tal vez con algún contra ejemplo entre dos muestras o con alguna función de R que podamos hallar. Para corregir este problema podemos transformar la disimilaridad de Bray-Curtis calculando la raíz cuadrada de sus valores. Comprobar que dicha raíz cuadrada verifica la desigualdad triangular.** 
 
-Para verificar la desigualdad triangular se puede utilizar la función `tri.ineq` de la librería `fossil`. Con esta función podemos corroborar que la distancia de Bray-Curtis calculada **no** verifica la desigualdad triangular, pero la raiz cuadrada de las distancias, si lo hacen. Al examinar la función en sí, es posible modificar el procedimiento por el que se verifica la desigualdad triangular, y encontar un conta ejemplo especifico. La fórmula busca si hay casos en que se cumpla que el "cateto" mas grande, sea mayor a la suma de los otros dos "catetos", lo que implica que no es un triángulo. 
+Para verificar la desigualdad triangular se puede utilizar la función `tri.ineq` de la librería `fossil`. Con esta función podemos corroborar que la distancia de Bray-Curtis calculada **no** verifica la desigualdad triangular, pero la raíz cuadrada de las distancias, si lo hacen. Al examinar la función en sí, es posible modificar el procedimiento por el que se verifica la desigualdad triangular, y encontrar un contra ejemplo especifico. La fórmula busca si hay casos en que se cumpla que el "cateto" mas grande, sea mayor a la suma de los otros dos "catetos", lo que implica que no es un triángulo. 
 
 ```{r}
 tri.ineq(df_dist)
 
-# función modificada para encontrar contrajemeplo. Devuelve el primer contraejemplo que encuentra.
+# función modificada para encontrar contra ejemplo. 
+# Devuelve el primer contra ejemplo que encuentra.
 mat <- as.matrix(df_dist)
     n <- dim(mat)[1]
     for (i in 1:(n - 2)) {
@@ -118,7 +119,7 @@ is_euclidean <- function(diss){
 }
 
 
-# probamos con la raiz cuadrada de la distancia 
+# probamos con la raíz cuadrada de la distancia 
 is_euclidean(sq_dist)
 ```
 
@@ -132,7 +133,7 @@ is_euclidean(sq_dist)
 **Evaluar la tendencia al agrupamiento con el estadístico de Hopkins que podéis calcular con la función `get_clust_tendency()` del paquete `factoextra`. La función `fviz_dist()` del mismo paquete permite realizar una imagen de la disimilaridad propuesta en el apartado anterior *(ordered dissimilarity image, ODI)* para evaluar gráficamente la tendencia al agrupamiento. También la misma función `get_clust_tendency()` lo hace con una imagen menos vistosa. ¿Cuantos conglomerados se intuyen? Para saber más sobre el análisis de la tendencia al agrupamiento, la fórmula del estadístico de Hopkins y un ejemplo se puede consultar la página https://www.datanovia.com/en/lessons/assessing-clustering-tendency/**
 
 
-Se realiza el cálculo del estadistico de Hopkins. En este caso resulta en aprox 0.32, lo que se acera medianamente a 0. Los datos tienen una tendencia a agruparse moderada. Al mirar la gráfica de las distancias (la raiz de la disimilaridad) se corrpobora lo anterior. Si bien los datos no son homogeneos, la forma en como se pueden agrupar no se ve tan claramente. Se podría intuir con el gráfico que hay 1 sector donde se aglomeran bien y luego unos 4 o quizas 5 sectores donde la los datos se aglomeran de manera menos estructurada, dependiendo del tamaño que se consiedere válido para una agrupación.
+Se realiza el cálculo del estadístico de Hopkins. En este caso resulta en aprox. 0.32, lo que se acera medianamente a 0. Los datos tienen una tendencia a agruparse moderada. Al mirar la gráfica de las distancias (la raíz de la disimilaridad) se corrobora lo anterior. Si bien los datos no son homogéneos, la forma en como se pueden agrupar no se ve tan claramente. Se podría intuir con el gráfico que hay 1 sector donde se aglomeran bien y luego unos 4 o quizás 5 sectores donde la los datos se aglomeran de manera menos estructurada, dependiendo del tamaño que se considere válido para una agrupación.
 
 ```{r fig.height=5, fig.width=5, message=FALSE}
 set.seed(41)
@@ -159,17 +160,17 @@ fviz_dist(sq_dist, lab_size = 5) +
 
 **Dibujar también un *heatmap* de este análisis con la función `heatmap()`. Para ello, hay que elegir bien los parámetros `distfun=` y `hclustfun=` y una escala de colores. ¿Para qué sirve el heatmap?**
 
-**Nota: No nos interesa reordenar las variables o columnas y tampoco un dendograma sobre ellas.**
+**Nota: No nos interesa re-ordenar las variables o columnas y tampoco un dendograma sobre ellas.**
 
 
-El dendograma permite detallar mejor el agrupameint aglomerativo que se intuía en el apartado anterior. 
+El dendograma permite detallar mejor el agrupamiento aglomerativo que se intuía en el apartado anterior. 
 ```{r message=FALSE}
 clust_1 <- agnes(sq_dist, diss = T, method = "ward")
 
 fviz_dend(clust_1, cex = .4, lwd = .3)
 ```
 
-La ventaja del "heatmap" es que incluye la infromacion de las columnas. En este caso es posible ver la de manera gráfica la distibución de las especies en las diferentes muestra. Si ademas utilizamos un dendograma y ordenamos las muestras según el dendograma, obtenemos información visual de como se distribuyen las especies en las ramas del dendograma, y como se podrian construir los diferentes clusters. 
+La ventaja del "heatmap" es que incluye la información de las columnas. En este caso es posible ver la de manera gráfica la distribución de las especies en las diferentes muestra. Si ademas utilizamos un dendograma y ordenamos las muestras según el dendograma, obtenemos información visual de como se distribuyen las especies en las ramas del dendograma, y como se podrían construir los diferentes *clusters*. 
 
 ```{r}
 heatmap(as.matrix(df),
@@ -200,7 +201,7 @@ grid.arrange(
 
 ```
 
-En este caso podemos observar que: Por el método de las siluetas la solución mas adecuada es las de 2 clusters. Por el método `gap_stat`, la solución óptima es la de 3 clusters. Por el método de WSS no hay una solución muy clara en la que se pueda establecer una reducción drástica o un *codo*. Quizás se podría decir que hay un *codo* en la solución de 2 clusters, y luego una een la de 6.
+En este caso podemos observar que: Por el método de las siluetas la solución mas adecuada es las de 2 *clusters*. Por el método `gap_stat`, la solución óptima es la de 3 *clusters*. Por el método de WSS no hay una solución muy clara en la que se pueda establecer una reducción drástica o un *codo*. Quizás se podría decir que hay un *codo* en la solución de 2 *clusters*, y luego una en la de 6.
 
 ---
 
@@ -219,7 +220,9 @@ grid.arrange(
 
 ```
 
+Pra el método de PAM, la solución no difiere mucho de la de `hcut`. La mejor solución por ancho de silueta es de 2 *clusters*, la de GAP es la de 3 *clusters*. POr WSS tampoco existe una solución muy clara. Se puede intuir un *codo* en los 3 y luego otro en los 7 *clusters*. 
 
+---
 
 
 ### (h)
@@ -229,10 +232,15 @@ grid.arrange(
 clust_6 <- hcut(sq_dist, k = 6, hc_func = "agnes", hc_method = "ward.D2")
 
 fviz_dend(clust_6,
-          palette = hcl.colors(palette = "Zissou 1", 6),
+          palette = solarized_pal()(6),
           lwd = .5,
           cex = .5)
+
 ```
+
+Se puede observar como quedan definidos los 6 *clusters* en esta configuración. 
+
+
 
 ```{r}
 dt <- 
@@ -251,20 +259,24 @@ pander(dt)
 ```
 
 
+LA tabla permite observar la frecuencia de cada especie en los diferentes *clusters*, quitando las especies cuyas es menor de 4 en cada *cluster*. 
+
+
 ```{r, results="asisi"}
 ca_df <- 
-    FactoMineR::CA(t(dt), graph = T)
-
-ca_df <- 
-    FactoMineR::CA(dt, graph = T)
+    FactoMineR::CA(dt, graph = F)
 
 pander(ca_df$eig)
 ```
 
 
 ```{r, results="asisi"}
-fviz_ca_biplot(ca_df, map ="rowprincipal", arrows = c(F,T), repel = T)
+fviz_ca_biplot(ca_df, map ="colprincipal", arrows = c(T,F), repel = T)
 ```
+
+En un gráfico asimétrico donde se represetan los conglomerados en la escala principal, podemos observar que los conglomerados que mas de diferencias son el 6 con el 1 y el 3. Los conglomerados 4 y 6, y en menor medida el 2, son menos diferentes o "idiotípicos" y dan menos infromacion diferencial.  
+
+Si miramos el angulo de los vectores de las especies, podemos observar una asociación entre *symtin* y el cluster 6, *ileopa* y *ostvir* con el cluster 1, y de *carcar* y *quemic* con el cluster 3. 
 
 
 ## Ejercicio 2 (30 pt.)
@@ -284,45 +296,38 @@ mod_NULL <-
 ```
 
 ```{r}
-# Para reporducir *con todo detalle* se puede utilizar la sintaxis de dplyr y crear la tabla
+# Para reporducir *con todo detalle* se puede utilizar la sintaxis de dplyr 
+# y crear la tabla
 tbl <-
     tidy(mod_lg) %>%
     mutate(
         chi_2 = (estimate / std.error) ^ 2,
-        Variable = c(
-            "Constant",
-            "Total length",
-            "Alar length",
-            "Length beak and head",
-            "Length humerus",
-            "Length keel of sternum"
-        ),
-        chi_2 = round(chi_2, 2)
-    ) %>%
+        Variable = c("Constant", "Total length","Alar length", "Length beak and head",
+                     "Length humerus", "Length keel of sternum"),
+        chi_2 = round(chi_2, 2)) %>%
     mutate_at(vars(estimate:p.value), list( ~ round(., 3))) %>%
     select(
-        Variable,
-        'β estimate' = estimate,
-        'Standard \\\\ error' = std.error,
-        'Chi-squared' = chi_2,
-        'p-Value' = p.value
-    )
-
+        Variable, 'β estimate' = estimate, 'Standard error' = std.error,
+        'Chi-squared' = chi_2, 'p-Value' = p.value)
 
 tbl[1,4:5] <- "--"
 
-
 pander(tbl, justify = "lcccc")
 ```
+
+---
 
 
 ### (b)
 **Contrastar con un test $\chi^2$ la significación de la regresión y explicar su resultado.**
 ```{r}
-anova(mod_NULL, mod_lg, test = "Chisq")
+anova(mod_NULL, mod_lg, test = "Chisq") %>% 
+    pander()
 ```
 
+En este caso hacemos un contraste del modelo creado con el modelo nulo. De esta manera lo que se evalúa como $H0$ es que el modelo creado no difiere del modelo nulo, es decir no hay diferencias entre los grupos. El resultado del estadístico es mas bien bajo, y con un valor no significativo, por lo que no se puede rechazar la $H0$ y por ende, se establece que las diferencias entre los grupos no son significativas.
 
+---
 
 ## (c)
 **Realizar un gráfico como el de la figura 8.2 de la página 156 del libro de Manly pero con los datos de este ejercicio y valorar el resultado.**
@@ -345,6 +350,11 @@ tibble(
 
 
 ```
+
+
+En el gráfico podemos observar que efectivamente, los dos grupos no presentan mayores diferencias en cuanto a lo predicho por el modelo según las variables cuantitativas que utiliza. 
+
+---
 
 
 ### (d)
@@ -371,3 +381,4 @@ pander(cm$overall)
 
 ```
 
+Para el cálculo de la matriz de confusión, en primer lugar clasificamos la predicción del modelo; el modelo entrega una predicción probabilística acerca de la categoría, pero necesitamos utilizar una categoría determinada. Una vez que tenemos la predicción categórica, podemos utilizar la función `confusionMatrix` del paquete `caret`, que permite hacer la tabla de confusión y además calcular los parámetros de exactitud de la predicción. 

@@ -1,0 +1,86 @@
+---
+title: "unidad_2"
+author: "Alejandro Keymer"
+date: "4/3/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse, caret, broom)
+```
+
+Realizar el informe dinámico del ejemplo del algoritmo de k‐NN para el diagnóstico de cáncer de mama que está en el capítulo 3 del libro de referencia. En este informe tiene que aparecer al principio un índice y una sección que incluya la  tabla de fortalezas y debilidades del algoritmo knn. A continuación, ya se plantea el algoritmo de k‐NN  pudiendo seguir las mismas ideas o apartados del libro, aunque no es necesario. Se llamará “Unidad2.Rmd”.
+
+Es fundamental verificar que el informe es "dinámico”, es decir, que se adapte a unos nuevos datos. Por ejemplo, si cuando se describe el fichero original de datos se escribe: “Nuestro fichero tiene 300 registros y 30 variables” pero después cambiamos el fichero por otro de 302 registros y 28 variables el informe debería aparecer como: “Nuestro fichero tiene 302 registros y 28 variables” automáticamente. Por tanto, el valor 300 y 30 debe ser el resultado del número de filas  y de columnas del fichero, respectivamente. Este principio se debe tener en cuenta en la redacción del informe para poder hacer el informe lo más general/dinámico posible.  
+Para tener constancia de vuestro trabajo, cada estudiante debe empaquetar el fichero “Unidad2.Rmd” y los dos ficheros de salida “Unidad2.html” y “Unidad2.pdf” en el fichero “Unidad2.zip”. Este fichero se debe añadir a la actividad “subir la tarea 2” de Moodle 2.
+
+# Introduccion
+
+## Caraterísticas del algoritmo
+
+|Fortalezas | Debilidades |
+|---------------------------------------------------------|-------------|
+|Implementación simple                                    |ddd  |
+|Técnica robusta, no paramétrica, resiste no linearidad   |ddd  |
+|Clasificador actualizable                                |ddd  |
+|Pocos parámetros a optimizar                             |ddd  |
+
+
+
+Very simple implementation.
+Robust with regard to the search space; for instance, classes don't have to be linearly separable.
+Classifier can be updated online at very little cost as new instances with known classes are presented.
+Few parameters to tune: distance metric and k.
+
+
+Expensive testing of each instance, as we need to compute its distance to all known instances. Specialized algorithms and heuristics exist for specific problems and distance functions, which can mitigate this issue. This is problematic for datasets with a large number of attributes. When the number of instances is much larger than the number of attributes, a R-tree or a kd-tree can be used to store instances, allowing for fast exact neighbor identification.
+Sensitiveness to noisy or irrelevant attributes, which can result in less meaningful distance numbers. Scaling and/or feature selection are typically used in combination with kNN to mitigate this issue.
+Sensitiveness to very unbalanced datasets, where most entities belong to one or a few classes, and infrequent classes are therefore often dominated in most neighborhoods. This can be alleviated through balanced sampling of the more popular classes in the training stage, possibly coupled with ensembles.
+
+# Aplicacion del algoritmo
+```{r}
+normalize <- function(x) ((x - min(x)) / (max(x) - min(x)))
+
+wbcd <- 
+    read_csv("wisc_bc_data.csv") %>%
+    select(-id) %>%
+    mutate(diagnosis = factor(diagnosis, 
+                              levels = c("B", "M"),
+                              labels = c("Benigno", "Maligno")))
+```
+
+
+
+```{r}
+set.seed(41)
+tr_ind <- sample(seq_len(nrow(wbcd)), size = floor(.8 * nrow(wbcd)))
+
+wbcd_train <- wbcd[tr_ind, ]
+wbcd_test <- wbcd[-tr_ind, ]
+
+```
+
+```{r}
+set.seed(41)
+knn_model <-
+    train(
+        diagnosis ~ .,
+        data = wbcd_train,
+        method = "knn",
+        trControl = trainControl(method="repeatedcv", repeats = 5),
+        preProcess = c("center", "scale"),
+        tuneLength = 20
+    )
+    
+
+plot.train(knn_model)
+```
+
+
+```{r}
+knn_pred <- predict(knn_model, newdata = wbcd_test)
+
+confusionMatrix(knn_pred, wbcd_test$diagnosis)
+```
+
